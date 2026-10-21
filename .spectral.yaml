@@ -1,0 +1,27 @@
+extends: ["spectral:oas"]
+rules:
+  operation-operationId: error
+  operation-description: off
+  operation-tags: error
+  oas3-api-servers: error
+  info-contact: off
+  info-description: error
+  operation-success-response: error
+  # versioning: only allow /v1 and /healthz
+  path-version-prefix:
+    description: Paths start with /v1 (except /healthz).
+    severity: error
+    given: $.paths[*]~
+    then:
+      function: pattern
+      functionOptions:
+        match: "^(/v1/|/healthz$)"
+  # only allow camel case ids
+  operation-id-lower-camel-case:
+    description: operationId is lowerCamelCase.
+    severity: error
+    given: $.paths[*][*].operationId
+    then:
+      function: pattern
+      functionOptions:
+        match: "^[a-z][A-Za-z0-9]*$"
