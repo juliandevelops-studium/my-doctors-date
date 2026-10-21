@@ -1,0 +1,126 @@
+openapi: 3.0.3
+info:
+  title: mail_service
+  version: 1.0.0
+  description: |
+    Sends templated e-mails over SMTP.
+servers:
+  - url: http://mail-service.praxis.svc.cluster.local:8080
+    description: In-cluster only
+security:
+  - serviceToken: []
+tags:
+  - {name: mail, description: "Send mail"}
+  - {name: internal, description: "Cluster-internal"}
+
+paths:
+  /healthz:
+    get:
+      operationId: mailServiceHealth
+      tags: [internal]
+      summary: Liveness probe
+      security: []
+      responses:
+        "200": {description: Alive}
+
+  /v1/mails:
+    post:
+      operationId: sendMail
+      tags: [mail]
+      summary: Send one templated mail
+      description: |
+        The body never contains appointment reasons or infos. There is no free-text mail.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/MailRequest"}
+      responses:
+        "202":
+          description: Handed to the SMTP server
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MailAccepted"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "502":
+          description: The SMTP server rejected or did not answer
+          content:
+            application/problem+json:
+              schema: {$ref: "#/components/schemas/Problem"}
+
+components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Service token (EdDSA, at most 60 s, aud=mail_service). See api/internal.md section 3.
+
+  responses:
+    Unauthorized:
+      description: Missing, invalid or expired service token
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Forbidden:
+      description: The caller may not use this template
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Unprocessable:
+      description: Unknown template, missing or invalid params, invalid address
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: {type: string, maxLength: 200, example: "about:blank"}
+        title: {type: string, maxLength: 200, example: "Template not allowed"}
+        status: {type: integer, minimum: 400, maximum: 599, example: 403}
+        code: {type: string, maxLength: 64, example: "template_not_allowed"}
+        detail: {type: string, maxLength: 500}
+
+    MailTemplate:
+      type: string
+      enum:
+        - verify_email
+        - password_reset
+        - email_change_confirm
+        - email_change_notice
+        - login_warning
+        - account_deleted
+        - booking_confirmed
+        - booking_changed
+        - booking_cancelled
+        - booking_reminder
+    MailParams:
+      type: object
+      additionalProperties: false
+      description: Which params are required depends on the template (api/internal.md section 5).
+      properties:
+        first_name: {type: string, minLength: 1, maxLength: 100}
+        link: {type: string, format: uri, maxLength: 500}
+        service: {type: string, maxLength: 100}
+        doctor_name: {type: string, maxLength: 200}
+        starts_at: {type: string, format: date-time}
+        time: {type: string, format: date-time}
+    MailRequest:
+      type: object
+      additionalProperties: false
+      required: [template, to, params]
+      properties:
+        template: {$ref: "#/components/schemas/MailTemplate"}
+        to: {type: string, format: email, minLength: 3, maxLength: 254, description: "One address, no line breaks"}
+        locale: {type: string, enum: [de], default: de}
+        params: {$ref: "#/components/schemas/MailParams"}
+    MailAccepted:
+      type: object
+      required: [message_id]
+      properties:
+        message_id: {type: string, format: uuid}

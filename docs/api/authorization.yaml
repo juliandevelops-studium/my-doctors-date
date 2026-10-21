@@ -1,0 +1,27 @@
+version: 1
+services:
+  - user_service
+  - calendar_service
+  - mail_service
+  - database_middleware
+roles:
+  - patient
+  - doctor
+  - desk
+  - organisator
+  - systemadmin
+routes:
+  - service: mail_service
+    operationId: sendMail
+    method: POST
+    path: /v1/mails
+    access: service
+    callers:
+      - user_service
+      - calendar_service
+    note: Template allow list per caller (api/internal.md section 5).
+  - service: mail_service
+    operationId: mailServiceHealth
+    method: GET
+    path: /healthz
+    access: internal
