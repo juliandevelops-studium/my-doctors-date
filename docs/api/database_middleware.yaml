@@ -1,0 +1,1433 @@
+openapi: 3.0.3
+info:
+  title: database_middleware
+  version: 1.0.0
+  description: |
+    Component with direct and controlled database access.
+servers:
+  - url: http://database-middleware.praxis.svc.cluster.local:8080
+    description: In-cluster only
+security:
+  - serviceToken: []
+tags:
+  - {name: operations, description: "Named database operations"}
+  - {name: internal, description: "Cluster-internal"}
+
+paths:
+  /healthz:
+    get:
+      operationId: databaseMiddlewareHealth
+      tags: [internal]
+      summary: Liveness probe
+      security: []
+      responses:
+        "200": {description: Alive}
+
+  /v1/ops/userCreate:
+    post:
+      operationId: userCreate
+      tags: [operations]
+      summary: Create an account
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UserCreate"}}}}
+      responses:
+        "201": {description: Created, content: {application/json: {schema: {$ref: "#/components/schemas/UserRecord"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/userGetByEmail:
+    post:
+      operationId: userGetByEmail
+      tags: [operations]
+      summary: Load an account including the password hash, case-insensitive e-mail
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EmailParam"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/UserWithCredentials"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/userGetById:
+    post:
+      operationId: userGetById
+      tags: [operations]
+      summary: Load an account including the password hash
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UserIdParam"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/UserWithCredentials"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/userList:
+    post:
+      operationId: userList
+      tags: [operations]
+      summary: List accounts
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UserListParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/UserPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/userUpdateProfile:
+    post:
+      operationId: userUpdateProfile
+      tags: [operations]
+      summary: Change name, phone, address
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UserProfileUpdate"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/UserRecord"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/userSetPassword:
+    post:
+      operationId: userSetPassword
+      tags: [operations]
+      summary: Store a new password hash, set sessions_valid_after, optionally must_change_password
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetPasswordParams"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/userSetEmailVerified:
+    post:
+      operationId: userSetEmailVerified
+      tags: [operations]
+      summary: Mark the e-mail as verified and activate a pending account
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UserIdParam"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/userChangeEmail:
+    post:
+      operationId: userChangeEmail
+      tags: [operations]
+      summary: Replace the e-mail address
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ChangeEmailParams"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /v1/ops/userSetRoles:
+    post:
+      operationId: userSetRoles
+      tags: [operations]
+      summary: Replace the roles; keeps doctor/patient rows in sync; sets sessions_valid_after; systemadmin must be exclusive
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetRolesParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/UserRecord"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/userRecordLoginFailure:
+    post:
+      operationId: userRecordLoginFailure
+      tags: [operations]
+      summary: Atomically count a failed attempt and compute the lock
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UserIdParam"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/LockState"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/userRecordLoginSuccess:
+    post:
+      operationId: userRecordLoginSuccess
+      tags: [operations]
+      summary: Reset the failed-attempt counter
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UserIdParam"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/userUnlock:
+    post:
+      operationId: userUnlock
+      tags: [operations]
+      summary: Clear the lock and the counter
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UserIdParam"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/userRevokeSessions:
+    post:
+      operationId: userRevokeSessions
+      tags: [operations]
+      summary: Set sessions_valid_after to now
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UserIdParam"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/accountDelete:
+    post:
+      operationId: accountDelete
+      tags: [operations]
+      summary: Cancel future bookings, anonymise past ones, disable and pseudonymise the account, delete MFA data
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UserIdParam"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/AccountDeleteResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/tokenCheck:
+    post:
+      operationId: tokenCheck
+      tags: [operations]
+      summary: Is the token still valid (not revoked, iat >= sessions_valid_after, account active)
+      x-allowed-callers: [user_service, calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TokenCheckParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/TokenCheckResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/tokenRevoke:
+    post:
+      operationId: tokenRevoke
+      tags: [operations]
+      summary: Revoke a jti until it expires
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TokenRevokeParams"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/emailTokenCreate:
+    post:
+      operationId: emailTokenCreate
+      tags: [operations]
+      summary: Store the hash of a verify/reset/email_change token; older unused tokens of the same purpose are invalidated
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EmailTokenCreateParams"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/emailTokenConsume:
+    post:
+      operationId: emailTokenConsume
+      tags: [operations]
+      summary: Atomically mark an unused, unexpired token as used
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EmailTokenConsumeParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/EmailTokenResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/mfaSecretUpsert:
+    post:
+      operationId: mfaSecretUpsert
+      tags: [operations]
+      summary: Store the encrypted TOTP secret of an unfinished setup; a confirmed secret is never overwritten (409 mfa_active), MFA must be removed first
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/MfaSecretParams"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /v1/ops/mfaSecretGet:
+    post:
+      operationId: mfaSecretGet
+      tags: [operations]
+      summary: Load the encrypted TOTP secret
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UserIdParam"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/MfaSecretRecord"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/mfaSecretConfirm:
+    post:
+      operationId: mfaSecretConfirm
+      tags: [operations]
+      summary: Mark the stored secret as confirmed
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UserIdParam"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/mfaUseStep:
+    post:
+      operationId: mfaUseStep
+      tags: [operations]
+      summary: "Atomically accept a TOTP time step once (replay protection, RFC 6238)"
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/MfaStepParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/MfaStepResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/mfaDelete:
+    post:
+      operationId: mfaDelete
+      tags: [operations]
+      summary: Hard delete the TOTP secret and all recovery codes
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UserIdParam"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/recoveryCodesReplace:
+    post:
+      operationId: recoveryCodesReplace
+      tags: [operations]
+      summary: Replace all recovery codes by new hashes
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RecoveryCodesParams"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/recoveryCodeConsume:
+    post:
+      operationId: recoveryCodeConsume
+      tags: [operations]
+      summary: Atomically use up one recovery code
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RecoveryCodeConsumeParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/ConsumeResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/specialtyList:
+    post:
+      operationId: specialtyList
+      tags: [operations]
+      summary: List specialties
+      x-allowed-callers: [calendar_service]
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/SpecialtyList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/specialtyCreate:
+    post:
+      operationId: specialtyCreate
+      tags: [operations]
+      summary: Create a specialty
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SpecialtyInput"}}}}
+      responses:
+        "201": {description: Created, content: {application/json: {schema: {$ref: "#/components/schemas/Specialty"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/specialtyDelete:
+    post:
+      operationId: specialtyDelete
+      tags: [operations]
+      summary: Delete a specialty not in use
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/IdParam"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /v1/ops/serviceList:
+    post:
+      operationId: serviceList
+      tags: [operations]
+      summary: List services
+      x-allowed-callers: [calendar_service]
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/ServiceList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/serviceCreate:
+    post:
+      operationId: serviceCreate
+      tags: [operations]
+      summary: Create a service
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ServiceInput"}}}}
+      responses:
+        "201": {description: Created, content: {application/json: {schema: {$ref: "#/components/schemas/Service"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/serviceUpdate:
+    post:
+      operationId: serviceUpdate
+      tags: [operations]
+      summary: Replace a service
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ServiceUpdateParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Service"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/serviceDelete:
+    post:
+      operationId: serviceDelete
+      tags: [operations]
+      summary: Delete a service not referenced by bookings and not is_other
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/IdParam"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /v1/ops/serviceImport:
+    post:
+      operationId: serviceImport
+      tags: [operations]
+      summary: Import specialties and services (JSON template)
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ServiceImportParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/ImportResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/doctorList:
+    post:
+      operationId: doctorList
+      tags: [operations]
+      summary: List doctors with specialties
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/DoctorListParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/DoctorList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/doctorGetSchedule:
+    post:
+      operationId: doctorGetSchedule
+      tags: [operations]
+      summary: Specialties and working days of a doctor
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/DoctorIdParam"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Schedule"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/doctorSetSchedule:
+    post:
+      operationId: doctorSetSchedule
+      tags: [operations]
+      summary: Replace specialties and working days; returns future bookings outside the new hours
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/DoctorScheduleParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/ScheduleResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/patientList:
+    post:
+      operationId: patientList
+      tags: [operations]
+      summary: Search patients by name or e-mail
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PatientListParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/PatientPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/patientGet:
+    post:
+      operationId: patientGet
+      tags: [operations]
+      summary: Load one patient including the main doctor
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PatientIdParam"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Patient"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/patientSetMainDoctor:
+    post:
+      operationId: patientSetMainDoctor
+      tags: [operations]
+      summary: Set or clear the main doctor
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/MainDoctorParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Patient"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/calendarGetWindows:
+    post:
+      operationId: calendarGetWindows
+      tags: [operations]
+      summary: Working windows and busy intervals per doctor, no booking details
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WindowsParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/WindowsResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/bookingCreate:
+    post:
+      operationId: bookingCreate
+      tags: [operations]
+      summary: Insert a booking; the exclusion constraint maps 23P01 to 409
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BookingInsert"}}}}
+      responses:
+        "201": {description: Created, content: {application/json: {schema: {$ref: "#/components/schemas/BookingRecord"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/bookingList:
+    post:
+      operationId: bookingList
+      tags: [operations]
+      summary: List bookings; soft-deleted rows are never returned; owner_* filters are applied in SQL
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BookingListParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/BookingPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/bookingGet:
+    post:
+      operationId: bookingGet
+      tags: [operations]
+      summary: Load one booking; owner_* filters are applied in SQL, no match = 404
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BookingGetParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/BookingRecord"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/bookingUpdate:
+    post:
+      operationId: bookingUpdate
+      tags: [operations]
+      summary: Change service, time, reason, info of a future booking
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BookingUpdateParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/BookingRecord"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/bookingCancel:
+    post:
+      operationId: bookingCancel
+      tags: [operations]
+      summary: "Cancel a future booking: status storniert, deleted_at set, reason/info cleared; owner_* filters applied in SQL"
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BookingGetParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/BookingRecord"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /v1/ops/bookingAssignDoctor:
+    post:
+      operationId: bookingAssignDoctor
+      tags: [operations]
+      summary: Set the doctor of a booking
+      x-allowed-callers: [calendar_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BookingAssignParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/BookingRecord"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/retentionGet:
+    post:
+      operationId: retentionGet
+      tags: [operations]
+      summary: Read the retention periods A to E
+      x-allowed-callers: [user_service, purge_job]
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Retention"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/retentionSet:
+    post:
+      operationId: retentionSet
+      tags: [operations]
+      summary: Store the retention periods A to E; C must be >= B
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RetentionSetParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Retention"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/brandingList:
+    post:
+      operationId: brandingList
+      tags: [operations]
+      summary: Read the metadata of the stored branding images (no image data)
+      x-allowed-callers: [user_service]
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/BrandingList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/brandingGet:
+    post:
+      operationId: brandingGet
+      tags: [operations]
+      summary: Read one branding image
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BrandingKeyParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/BrandingImage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /v1/ops/brandingSet:
+    post:
+      operationId: brandingSet
+      tags: [operations]
+      summary: Store or replace one branding image
+      description: The image was validated by user_service. The database enforces type and size again. Body limit 2 MiB for this operation.
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BrandingSetParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/BrandingMeta"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/brandingDelete:
+    post:
+      operationId: brandingDelete
+      tags: [operations]
+      summary: Remove one branding image
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BrandingKeyParams"}}}}
+      responses:
+        "204": {description: Removed (also when none was stored)}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/auditWrite:
+    post:
+      operationId: auditWrite
+      tags: [operations]
+      summary: Append an audit row (no appointment contents)
+      x-allowed-callers: [user_service, calendar_service, purge_job]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AuditWriteParams"}}}}
+      responses:
+        "204": {description: Done}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/auditList:
+    post:
+      operationId: auditList
+      tags: [operations]
+      summary: Read audit rows
+      x-allowed-callers: [user_service]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AuditListParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/AuditPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/ops/purgeExpired:
+    post:
+      operationId: purgeExpired
+      tags: [operations]
+      summary: Hard delete expired rows of one category and write one audit row
+      x-allowed-callers: [purge_job]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PurgeParams"}}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/PurgeResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+  /v1/ops/bookingsCompletePast:
+    post:
+      operationId: bookingsCompletePast
+      tags: [operations]
+      summary: Set status abgeschlossen on ended, confirmed bookings
+      x-allowed-callers: [purge_job]
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/PurgeResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Service token (EdDSA, at most 60 s, aud=database_middleware). See api/internal.md section 3.
+
+  responses:
+    Unauthorized:
+      description: Missing, invalid or expired service token
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Forbidden:
+      description: The operation is not allowed for the calling service
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    NotFound:
+      description: "No matching row (also: row exists but the owner_* filter does not match)"
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Conflict:
+      description: Unique violation, overlap (23P01, code `slot_taken`) or object in use
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Unprocessable:
+      description: Check constraint or business rule violated
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: {type: string, maxLength: 200, example: "about:blank"}
+        title: {type: string, maxLength: 200, example: "Slot already taken"}
+        status: {type: integer, minimum: 400, maximum: 599, example: 409}
+        code: {type: string, maxLength: 64, example: "slot_taken"}
+        detail: {type: string, maxLength: 500}
+
+    # ---- shared
+    Uuid: {type: string, format: uuid}
+    Role: {type: string, enum: [patient, doctor, desk, organisator, systemadmin]}
+    UserStatus: {type: string, enum: [pending, active, locked, disabled]}
+    BookingStatus: {type: string, enum: [angefragt, bestaetigt, storniert, abgeschlossen]}
+    Email: {type: string, format: email, minLength: 3, maxLength: 254}
+    PasswordHash: {type: string, maxLength: 512, pattern: '^\$argon2id\$', description: "Anything else is rejected."}
+    Address:
+      type: object
+      additionalProperties: false
+      properties:
+        street: {type: string, maxLength: 200, nullable: true}
+        postal_code: {type: string, maxLength: 20, nullable: true}
+        city: {type: string, maxLength: 100, nullable: true}
+    EmailParam:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: {$ref: "#/components/schemas/Email"}
+    UserIdParam:
+      type: object
+      additionalProperties: false
+      required: [user_id]
+      properties:
+        user_id: {$ref: "#/components/schemas/Uuid"}
+    IdParam:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: {$ref: "#/components/schemas/Uuid"}
+    DoctorIdParam:
+      type: object
+      additionalProperties: false
+      required: [doctor_id]
+      properties:
+        doctor_id: {$ref: "#/components/schemas/Uuid"}
+    PatientIdParam:
+      type: object
+      additionalProperties: false
+      required: [patient_id]
+      properties:
+        patient_id: {$ref: "#/components/schemas/Uuid"}
+
+    # ---- accounts
+    UserRecord:
+      type: object
+      required: [id, first_name, last_name, email, status, roles, permanently_locked, must_change_password, mfa_enabled, sessions_valid_after, created_at]
+      properties:
+        id: {$ref: "#/components/schemas/Uuid"}
+        first_name: {type: string, maxLength: 100}
+        last_name: {type: string, maxLength: 100}
+        email: {$ref: "#/components/schemas/Email"}
+        phone: {type: string, maxLength: 30, nullable: true}
+        address: {$ref: "#/components/schemas/Address"}
+        status: {$ref: "#/components/schemas/UserStatus"}
+        roles:
+          type: array
+          maxItems: 5
+          items: {$ref: "#/components/schemas/Role"}
+        email_verified_at: {type: string, format: date-time, nullable: true}
+        failed_attempts: {type: integer, minimum: 0, maximum: 1000000}
+        locked_until: {type: string, format: date-time, nullable: true}
+        permanently_locked: {type: boolean}
+        must_change_password: {type: boolean}
+        mfa_enabled: {type: boolean}
+        sessions_valid_after: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+    UserWithCredentials:
+      description: Only for user_service. Contains the Argon2id hash.
+      allOf:
+        - $ref: "#/components/schemas/UserRecord"
+        - type: object
+          required: [password_hash]
+          properties:
+            password_hash: {$ref: "#/components/schemas/PasswordHash"}
+    UserCreate:
+      type: object
+      additionalProperties: false
+      required: [first_name, last_name, email, password_hash, roles, status, must_change_password]
+      properties:
+        first_name: {type: string, minLength: 1, maxLength: 100}
+        last_name: {type: string, minLength: 1, maxLength: 100}
+        email: {$ref: "#/components/schemas/Email"}
+        phone: {type: string, maxLength: 30}
+        address: {$ref: "#/components/schemas/Address"}
+        password_hash: {$ref: "#/components/schemas/PasswordHash"}
+        roles:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/Role"}
+        status: {$ref: "#/components/schemas/UserStatus"}
+        must_change_password: {type: boolean}
+    UserListParams:
+      type: object
+      additionalProperties: false
+      properties:
+        q: {type: string, maxLength: 100}
+        role: {$ref: "#/components/schemas/Role"}
+        status: {$ref: "#/components/schemas/UserStatus"}
+        limit: {type: integer, minimum: 1, maximum: 200, default: 50}
+        offset: {type: integer, minimum: 0, maximum: 1000000, default: 0}
+    UserPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/UserRecord"}
+        total: {type: integer, minimum: 0, maximum: 1000000}
+    UserProfileUpdate:
+      type: object
+      additionalProperties: false
+      required: [user_id]
+      properties:
+        user_id: {$ref: "#/components/schemas/Uuid"}
+        first_name: {type: string, minLength: 1, maxLength: 100}
+        last_name: {type: string, minLength: 1, maxLength: 100}
+        phone: {type: string, maxLength: 30, nullable: true}
+        address: {$ref: "#/components/schemas/Address"}
+    SetPasswordParams:
+      type: object
+      additionalProperties: false
+      required: [user_id, password_hash, must_change_password]
+      properties:
+        user_id: {$ref: "#/components/schemas/Uuid"}
+        password_hash: {$ref: "#/components/schemas/PasswordHash"}
+        must_change_password: {type: boolean}
+    ChangeEmailParams:
+      type: object
+      additionalProperties: false
+      required: [user_id, new_email]
+      properties:
+        user_id: {$ref: "#/components/schemas/Uuid"}
+        new_email: {$ref: "#/components/schemas/Email"}
+    SetRolesParams:
+      type: object
+      additionalProperties: false
+      required: [user_id, roles]
+      properties:
+        user_id: {$ref: "#/components/schemas/Uuid"}
+        roles:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/Role"}
+    LockState:
+      type: object
+      required: [failed_attempts, permanently_locked]
+      properties:
+        failed_attempts: {type: integer, minimum: 0, maximum: 1000000}
+        locked_until: {type: string, format: date-time, nullable: true}
+        permanently_locked: {type: boolean}
+    AccountDeleteResult:
+      type: object
+      required: [cancelled_bookings, anonymised_bookings]
+      properties:
+        cancelled_bookings: {type: integer, minimum: 0, maximum: 1000000}
+        anonymised_bookings: {type: integer, minimum: 0, maximum: 1000000}
+
+    # ---- tokens and MFA
+    TokenCheckParams:
+      type: object
+      additionalProperties: false
+      required: [jti, sub, iat]
+      properties:
+        jti: {$ref: "#/components/schemas/Uuid"}
+        sub: {$ref: "#/components/schemas/Uuid"}
+        iat: {type: string, format: date-time}
+    TokenCheckResult:
+      type: object
+      required: [valid]
+      properties:
+        valid: {type: boolean}
+    TokenRevokeParams:
+      type: object
+      additionalProperties: false
+      required: [jti, user_id, expires_at]
+      properties:
+        jti: {$ref: "#/components/schemas/Uuid"}
+        user_id: {$ref: "#/components/schemas/Uuid"}
+        expires_at: {type: string, format: date-time}
+    EmailTokenCreateParams:
+      type: object
+      additionalProperties: false
+      required: [user_id, purpose, token_hash, expires_at]
+      properties:
+        user_id: {$ref: "#/components/schemas/Uuid"}
+        purpose: {type: string, enum: [verify, reset, email_change]}
+        token_hash: {type: string, minLength: 32, maxLength: 128}
+        new_email: {$ref: "#/components/schemas/Email"}
+        expires_at: {type: string, format: date-time}
+    EmailTokenConsumeParams:
+      type: object
+      additionalProperties: false
+      required: [purpose, token_hash]
+      properties:
+        purpose: {type: string, enum: [verify, reset, email_change]}
+        token_hash: {type: string, minLength: 32, maxLength: 128}
+    EmailTokenResult:
+      type: object
+      required: [user_id]
+      properties:
+        user_id: {$ref: "#/components/schemas/Uuid"}
+        new_email: {$ref: "#/components/schemas/Email"}
+    MfaSecretParams:
+      type: object
+      additionalProperties: false
+      required: [user_id, secret_enc]
+      properties:
+        user_id: {$ref: "#/components/schemas/Uuid"}
+        secret_enc: {type: string, format: byte, maxLength: 512, description: "AES-GCM ciphertext, nonce prepended"}
+    MfaSecretRecord:
+      description: Only for user_service. `confirmed` is false while the setup is unfinished.
+      type: object
+      required: [secret_enc, confirmed]
+      properties:
+        secret_enc: {type: string, format: byte, maxLength: 512}
+        confirmed: {type: boolean}
+    MfaStepParams:
+      type: object
+      additionalProperties: false
+      required: [user_id, step]
+      properties:
+        user_id: {$ref: "#/components/schemas/Uuid"}
+        step: {type: integer, format: int64, minimum: 1, maximum: 9007199254740991, description: "Unix time / 30"}
+    MfaStepResult:
+      type: object
+      required: [accepted]
+      properties:
+        accepted: {type: boolean, description: "false if this step or a later one was already used"}
+    RecoveryCodesParams:
+      type: object
+      additionalProperties: false
+      required: [user_id, code_hashes]
+      properties:
+        user_id: {$ref: "#/components/schemas/Uuid"}
+        code_hashes:
+          type: array
+          minItems: 10
+          maxItems: 10
+          items: {type: string, minLength: 32, maxLength: 256}
+    RecoveryCodeConsumeParams:
+      type: object
+      additionalProperties: false
+      required: [user_id, code_hash]
+      properties:
+        user_id: {$ref: "#/components/schemas/Uuid"}
+        code_hash: {type: string, minLength: 32, maxLength: 256}
+    ConsumeResult:
+      type: object
+      required: [consumed]
+      properties:
+        consumed: {type: boolean}
+
+    # ---- practice
+    Specialty:
+      type: object
+      required: [id, name]
+      properties:
+        id: {$ref: "#/components/schemas/Uuid"}
+        name: {type: string, maxLength: 100}
+    SpecialtyInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+    SpecialtyList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/Specialty"}
+    Service:
+      type: object
+      required: [id, name, duration_minutes, is_other]
+      properties:
+        id: {$ref: "#/components/schemas/Uuid"}
+        name: {type: string, maxLength: 100}
+        duration_minutes: {type: integer, minimum: 5, maximum: 480}
+        specialty_id: {allOf: [{$ref: "#/components/schemas/Uuid"}], nullable: true}
+        specialty_name: {type: string, maxLength: 100, nullable: true}
+        is_other: {type: boolean}
+    ServiceList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items: {$ref: "#/components/schemas/Service"}
+    ServiceInput:
+      type: object
+      additionalProperties: false
+      required: [name, duration_minutes]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        duration_minutes: {type: integer, minimum: 5, maximum: 480}
+        specialty_id: {$ref: "#/components/schemas/Uuid"}
+    ServiceUpdateParams:
+      type: object
+      additionalProperties: false
+      required: [id, name, duration_minutes]
+      properties:
+        id: {$ref: "#/components/schemas/Uuid"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        duration_minutes: {type: integer, minimum: 5, maximum: 480}
+        specialty_id: {$ref: "#/components/schemas/Uuid"}
+    ServiceImportParams:
+      type: object
+      additionalProperties: false
+      required: [dry_run]
+      properties:
+        dry_run: {type: boolean}
+        specialties:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required: [name]
+            properties:
+              name: {type: string, minLength: 1, maxLength: 100}
+        services:
+          type: array
+          maxItems: 500
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, duration_minutes]
+            properties:
+              name: {type: string, minLength: 1, maxLength: 100}
+              duration_minutes: {type: integer, minimum: 5, maximum: 480}
+              specialty: {type: string, maxLength: 100, nullable: true}
+              is_other: {type: boolean}
+    ImportResult:
+      type: object
+      required: [dry_run, specialties_created, services_created, services_updated, warnings]
+      properties:
+        dry_run: {type: boolean}
+        specialties_created: {type: integer, minimum: 0, maximum: 1000000}
+        services_created: {type: integer, minimum: 0, maximum: 1000000}
+        services_updated: {type: integer, minimum: 0, maximum: 1000000}
+        warnings:
+          type: array
+          maxItems: 100
+          items: {type: string, maxLength: 300}
+    DoctorListParams:
+      type: object
+      additionalProperties: false
+      properties:
+        specialty_id: {$ref: "#/components/schemas/Uuid"}
+    DoctorList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/DoctorSummary"}
+    DoctorSummary:
+      type: object
+      required: [id, first_name, last_name, specialties]
+      properties:
+        id: {$ref: "#/components/schemas/Uuid"}
+        first_name: {type: string, maxLength: 100}
+        last_name: {type: string, maxLength: 100}
+        specialties:
+          type: array
+          maxItems: 50
+          items: {$ref: "#/components/schemas/Specialty"}
+    WorkingDay:
+      type: object
+      additionalProperties: false
+      required: [weekday, start_time, end_time]
+      properties:
+        weekday: {type: integer, minimum: 1, maximum: 7}
+        start_time: {type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'}
+        end_time: {type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'}
+    Schedule:
+      type: object
+      additionalProperties: false
+      required: [specialty_ids, working_days]
+      properties:
+        specialty_ids:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/Uuid"}
+        working_days:
+          type: array
+          maxItems: 28
+          items: {$ref: "#/components/schemas/WorkingDay"}
+    DoctorScheduleParams:
+      type: object
+      additionalProperties: false
+      required: [doctor_id, specialty_ids, working_days]
+      properties:
+        doctor_id: {$ref: "#/components/schemas/Uuid"}
+        specialty_ids:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/Uuid"}
+        working_days:
+          type: array
+          maxItems: 28
+          items: {$ref: "#/components/schemas/WorkingDay"}
+    ScheduleResult:
+      type: object
+      required: [schedule, bookings_outside_hours]
+      properties:
+        schedule: {$ref: "#/components/schemas/Schedule"}
+        bookings_outside_hours:
+          type: array
+          maxItems: 500
+          items: {$ref: "#/components/schemas/Uuid"}
+    Patient:
+      type: object
+      required: [id, first_name, last_name, email]
+      properties:
+        id: {$ref: "#/components/schemas/Uuid"}
+        first_name: {type: string, maxLength: 100}
+        last_name: {type: string, maxLength: 100}
+        email: {$ref: "#/components/schemas/Email"}
+        phone: {type: string, maxLength: 30, nullable: true}
+        main_doctor_id: {allOf: [{$ref: "#/components/schemas/Uuid"}], nullable: true}
+    PatientListParams:
+      type: object
+      additionalProperties: false
+      properties:
+        q: {type: string, minLength: 2, maxLength: 100}
+        limit: {type: integer, minimum: 1, maximum: 200, default: 50}
+        offset: {type: integer, minimum: 0, maximum: 1000000, default: 0}
+    PatientPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/Patient"}
+        total: {type: integer, minimum: 0, maximum: 1000000}
+    MainDoctorParams:
+      type: object
+      additionalProperties: false
+      required: [patient_id, doctor_id]
+      properties:
+        patient_id: {$ref: "#/components/schemas/Uuid"}
+        doctor_id: {allOf: [{$ref: "#/components/schemas/Uuid"}], nullable: true}
+
+    # ---- bookings
+    WindowsParams:
+      type: object
+      additionalProperties: false
+      required: [from, to]
+      properties:
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        doctor_id: {$ref: "#/components/schemas/Uuid"}
+        specialty_id: {$ref: "#/components/schemas/Uuid"}
+    WindowsResult:
+      type: object
+      required: [doctors]
+      properties:
+        doctors:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/DoctorWindows"}
+    DoctorWindows:
+      type: object
+      required: [doctor_id, working, busy]
+      properties:
+        doctor_id: {$ref: "#/components/schemas/Uuid"}
+        working:
+          type: array
+          maxItems: 2000
+          items: {$ref: "#/components/schemas/Interval"}
+        busy:
+          type: array
+          maxItems: 5000
+          items: {$ref: "#/components/schemas/Interval"}
+    Interval:
+      type: object
+      required: [starts_at, ends_at]
+      properties:
+        starts_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time}
+    BookingRecord:
+      type: object
+      required: [id, service_id, service_name, starts_at, ends_at, status]
+      properties:
+        id: {$ref: "#/components/schemas/Uuid"}
+        service_id: {$ref: "#/components/schemas/Uuid"}
+        service_name: {type: string, maxLength: 100}
+        doctor_id: {allOf: [{$ref: "#/components/schemas/Uuid"}], nullable: true}
+        doctor_first_name: {type: string, maxLength: 100, nullable: true}
+        doctor_last_name: {type: string, maxLength: 100, nullable: true}
+        patient_id: {allOf: [{$ref: "#/components/schemas/Uuid"}], nullable: true}
+        patient_first_name: {type: string, maxLength: 100, nullable: true}
+        patient_last_name: {type: string, maxLength: 100, nullable: true}
+        patient_email: {type: string, format: email, maxLength: 254, nullable: true}
+        patient_phone: {type: string, maxLength: 30, nullable: true}
+        starts_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time}
+        status: {$ref: "#/components/schemas/BookingStatus"}
+        reason: {type: string, maxLength: 200, nullable: true}
+        info: {type: string, maxLength: 2000, nullable: true}
+    BookingPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/BookingRecord"}
+        total: {type: integer, minimum: 0, maximum: 1000000}
+    BookingInsert:
+      type: object
+      additionalProperties: false
+      required: [patient_id, service_id, starts_at, ends_at]
+      properties:
+        patient_id: {$ref: "#/components/schemas/Uuid"}
+        doctor_id: {$ref: "#/components/schemas/Uuid"}
+        service_id: {$ref: "#/components/schemas/Uuid"}
+        starts_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time}
+        reason: {type: string, maxLength: 200}
+        info: {type: string, maxLength: 2000}
+    BookingListParams:
+      type: object
+      additionalProperties: false
+      properties:
+        owner_patient_id: {$ref: "#/components/schemas/Uuid"}
+        owner_doctor_id: {$ref: "#/components/schemas/Uuid"}
+        patient_id: {$ref: "#/components/schemas/Uuid"}
+        doctor_id: {$ref: "#/components/schemas/Uuid"}
+        unassigned: {type: boolean}
+        when: {type: string, enum: [upcoming, past]}
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        limit: {type: integer, minimum: 1, maximum: 200, default: 50}
+        offset: {type: integer, minimum: 0, maximum: 1000000, default: 0}
+    BookingGetParams:
+      type: object
+      additionalProperties: false
+      required: [booking_id]
+      properties:
+        booking_id: {$ref: "#/components/schemas/Uuid"}
+        owner_patient_id: {$ref: "#/components/schemas/Uuid"}
+        owner_doctor_id: {$ref: "#/components/schemas/Uuid"}
+    BookingUpdateParams:
+      type: object
+      additionalProperties: false
+      required: [booking_id]
+      properties:
+        booking_id: {$ref: "#/components/schemas/Uuid"}
+        service_id: {$ref: "#/components/schemas/Uuid"}
+        starts_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time}
+        reason: {type: string, maxLength: 200, nullable: true}
+        info: {type: string, maxLength: 2000, nullable: true}
+    BookingAssignParams:
+      type: object
+      additionalProperties: false
+      required: [booking_id, doctor_id]
+      properties:
+        booking_id: {$ref: "#/components/schemas/Uuid"}
+        doctor_id: {$ref: "#/components/schemas/Uuid"}
+
+    # ---- config, audit, purge
+    BrandingKeyParams:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind: {type: string, enum: [logo, banner]}
+    BrandingMeta:
+      type: object
+      required: [kind, content_type, sha256]
+      properties:
+        kind: {type: string, enum: [logo, banner]}
+        content_type: {type: string, enum: [image/png, image/jpeg, image/webp]}
+        sha256: {type: string, pattern: "^[0-9a-f]{64}$", maxLength: 64}
+    BrandingList:
+      type: object
+      required: [items]
+      properties:
+        items: {type: array, maxItems: 2, items: {$ref: "#/components/schemas/BrandingMeta"}}
+    BrandingImage:
+      type: object
+      required: [kind, content_type, sha256, data_base64]
+      properties:
+        kind: {type: string, enum: [logo, banner]}
+        content_type: {type: string, enum: [image/png, image/jpeg, image/webp]}
+        sha256: {type: string, pattern: "^[0-9a-f]{64}$", maxLength: 64}
+        data_base64: {type: string, maxLength: 1398104, description: "Standard base64 of at most 1 MiB"}
+    BrandingSetParams:
+      type: object
+      additionalProperties: false
+      required: [kind, content_type, sha256, data_base64, updated_by]
+      properties:
+        kind: {type: string, enum: [logo, banner]}
+        content_type: {type: string, enum: [image/png, image/jpeg, image/webp]}
+        sha256: {type: string, pattern: "^[0-9a-f]{64}$", maxLength: 64}
+        data_base64: {type: string, maxLength: 1398104, description: "Standard base64 of at most 1 MiB"}
+        updated_by: {type: string, format: uuid}
+    Retention:
+      type: object
+      additionalProperties: false
+      required: [retention_a_days, retention_b_days, retention_c_days, retention_d_days, retention_e_days]
+      properties:
+        retention_a_days: {type: integer, minimum: 1, maximum: 3650}
+        retention_b_days: {type: integer, minimum: 1, maximum: 3650}
+        retention_c_days: {type: integer, minimum: 1, maximum: 3650}
+        retention_d_days: {type: integer, minimum: 1, maximum: 3650}
+        retention_e_days: {type: integer, minimum: 1, maximum: 3650}
+    RetentionSetParams:
+      type: object
+      additionalProperties: false
+      required: [retention_a_days, retention_b_days, retention_c_days, retention_d_days, retention_e_days, updated_by]
+      properties:
+        retention_a_days: {type: integer, minimum: 1, maximum: 3650}
+        retention_b_days: {type: integer, minimum: 1, maximum: 3650}
+        retention_c_days: {type: integer, minimum: 1, maximum: 3650}
+        retention_d_days: {type: integer, minimum: 1, maximum: 3650}
+        retention_e_days: {type: integer, minimum: 1, maximum: 3650}
+        updated_by: {$ref: "#/components/schemas/Uuid"}
+    AuditWriteParams:
+      type: object
+      additionalProperties: false
+      required: [action]
+      description: No appointment contents and no personal data besides ids.
+      properties:
+        actor_user_id: {$ref: "#/components/schemas/Uuid"}
+        action: {type: string, minLength: 1, maxLength: 100}
+        data_category: {type: string, maxLength: 64}
+        target_user_id: {$ref: "#/components/schemas/Uuid"}
+        affected_count: {type: integer, minimum: 0, maximum: 1000000}
+    AuditListParams:
+      type: object
+      additionalProperties: false
+      properties:
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        action: {type: string, maxLength: 100}
+        limit: {type: integer, minimum: 1, maximum: 200, default: 50}
+        offset: {type: integer, minimum: 0, maximum: 1000000, default: 0}
+    AuditPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/AuditEntry"}
+        total: {type: integer, minimum: 0, maximum: 1000000}
+    AuditEntry:
+      type: object
+      required: [id, occurred_at, action]
+      properties:
+        id: {type: integer, format: int64, minimum: 1, maximum: 9007199254740991}
+        occurred_at: {type: string, format: date-time}
+        actor_user_id: {type: string, format: uuid, nullable: true}
+        action: {type: string, maxLength: 100}
+        data_category: {type: string, maxLength: 64, nullable: true}
+        target_user_id: {type: string, format: uuid, nullable: true}
+        affected_count: {type: integer, minimum: 0, maximum: 1000000, nullable: true}
+    PurgeParams:
+      type: object
+      additionalProperties: false
+      required: [category]
+      properties:
+        category:
+          type: string
+          enum: [bookings_cancelled, bookings_completed_content, bookings_completed, users, audit_log, tokens, email_tokens]
+    PurgeResult:
+      type: object
+      required: [affected_count]
+      properties:
+        affected_count: {type: integer, minimum: 0, maximum: 1000000}

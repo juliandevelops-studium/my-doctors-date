@@ -9,6 +9,15 @@ This project made use of Claude Code and Mistral Vibe as peer-programmers.
 
 ## Generated Content
 
+### `docs`
+
+#### `api`
+
+##### `database_middleware.yaml`
+
+OpenAPI specification was defined by a human and written by Claude Code.
+Specification was reviewed by a human.
+
 ### `libs`
 
 #### `auth`
