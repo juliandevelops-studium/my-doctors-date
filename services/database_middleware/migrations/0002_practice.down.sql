@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS patients;
+DROP TABLE IF EXISTS working_days;
+DROP TABLE IF EXISTS doctor_specialties;
+DROP TABLE IF EXISTS doctors;
+DROP TABLE IF EXISTS services;
+DROP TABLE IF EXISTS specialties;

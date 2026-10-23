@@ -34,4 +34,12 @@ Code was reviewed by a human and comments where added manually.
   * File management (reading PEM-files)
   * Base64 encoding and decoding
 * Programmed with AI assistance
-  * `Verify` function 
+  * `Verify` function
+
+### `services`
+
+#### `database_middleware`
+
+#### `migrations`
+
+SQL statements (migration files) where created based on the database concept (made by a human) by Claude Code.
