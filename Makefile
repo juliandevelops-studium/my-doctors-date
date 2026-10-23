@@ -8,3 +8,6 @@ SERVICES := mail_service
 
 lint-api:
 	@npx --yes $(SPECTRAL) lint --ruleset .spectral.yaml --fail-severity=warn $(foreach s,$(API_SERVICES),docs/api/$(s).yaml)
+
+migrate-test:
+	@./scripts/test-migrations.sh

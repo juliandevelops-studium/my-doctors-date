@@ -43,3 +43,13 @@ Code was reviewed by a human and comments where added manually.
 #### `migrations`
 
 SQL statements (migration files) where created based on the database concept (made by a human) by Claude Code.
+
+### `scripts`
+
+### `test-migrations.sh`
+
+The migration test code was created by Claude Code together with its SQL statements
+
+### `test-schema.sql`
+
+See [test-migrations.sh](#test-migrationssh).
