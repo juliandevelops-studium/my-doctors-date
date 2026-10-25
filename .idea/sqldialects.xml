@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SqlDialectMappings">
+    <file url="file://$PROJECT_DIR$/scripts/test-schema.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/services/database_middleware/migrations/0001_users.down.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/services/database_middleware/migrations/0001_users.up.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/services/database_middleware/migrations/0002_practice.down.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/services/database_middleware/migrations/0002_practice.up.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/services/database_middleware/migrations/0003_bookings.down.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/services/database_middleware/migrations/0003_bookings.up.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/services/database_middleware/migrations/0004_operations.down.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/services/database_middleware/migrations/0004_operations.up.sql" dialect="GenericSQL" />
+  </component>
+</project>
