@@ -604,52 +604,6 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/Unprocessable"}
-  /v1/ops/brandingList:
-    post:
-      operationId: brandingList
-      tags: [operations]
-      summary: Read the metadata of the stored branding images (no image data)
-      x-allowed-callers: [user_service]
-      responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/BrandingList"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-  /v1/ops/brandingGet:
-    post:
-      operationId: brandingGet
-      tags: [operations]
-      summary: Read one branding image
-      x-allowed-callers: [user_service]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BrandingKeyParams"}}}}
-      responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/BrandingImage"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-  /v1/ops/brandingSet:
-    post:
-      operationId: brandingSet
-      tags: [operations]
-      summary: Store or replace one branding image
-      description: The image was validated by user_service. The database enforces type and size again. Body limit 2 MiB for this operation.
-      x-allowed-callers: [user_service]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BrandingSetParams"}}}}
-      responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/BrandingMeta"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "422": {$ref: "#/components/responses/Unprocessable"}
-  /v1/ops/brandingDelete:
-    post:
-      operationId: brandingDelete
-      tags: [operations]
-      summary: Remove one branding image
-      x-allowed-callers: [user_service]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BrandingKeyParams"}}}}
-      responses:
-        "204": {description: Removed (also when none was stored)}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
   /v1/ops/auditWrite:
     post:
       operationId: auditWrite
@@ -1321,42 +1275,6 @@ components:
         doctor_id: {$ref: "#/components/schemas/Uuid"}
 
     # ---- config, audit, purge
-    BrandingKeyParams:
-      type: object
-      additionalProperties: false
-      required: [kind]
-      properties:
-        kind: {type: string, enum: [logo, banner]}
-    BrandingMeta:
-      type: object
-      required: [kind, content_type, sha256]
-      properties:
-        kind: {type: string, enum: [logo, banner]}
-        content_type: {type: string, enum: [image/png, image/jpeg, image/webp]}
-        sha256: {type: string, pattern: "^[0-9a-f]{64}$", maxLength: 64}
-    BrandingList:
-      type: object
-      required: [items]
-      properties:
-        items: {type: array, maxItems: 2, items: {$ref: "#/components/schemas/BrandingMeta"}}
-    BrandingImage:
-      type: object
-      required: [kind, content_type, sha256, data_base64]
-      properties:
-        kind: {type: string, enum: [logo, banner]}
-        content_type: {type: string, enum: [image/png, image/jpeg, image/webp]}
-        sha256: {type: string, pattern: "^[0-9a-f]{64}$", maxLength: 64}
-        data_base64: {type: string, maxLength: 1398104, description: "Standard base64 of at most 1 MiB"}
-    BrandingSetParams:
-      type: object
-      additionalProperties: false
-      required: [kind, content_type, sha256, data_base64, updated_by]
-      properties:
-        kind: {type: string, enum: [logo, banner]}
-        content_type: {type: string, enum: [image/png, image/jpeg, image/webp]}
-        sha256: {type: string, pattern: "^[0-9a-f]{64}$", maxLength: 64}
-        data_base64: {type: string, maxLength: 1398104, description: "Standard base64 of at most 1 MiB"}
-        updated_by: {type: string, format: uuid}
     Retention:
       type: object
       additionalProperties: false
