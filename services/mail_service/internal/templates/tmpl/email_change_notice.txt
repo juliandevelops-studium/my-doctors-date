@@ -1,0 +1,13 @@
+Subject: Änderung Ihrer E-Mail-Adresse angefordert
+
+Guten Tag {{.FirstName}},
+
+für Ihr Konto bei {{.Practice}} wurde eine Änderung der E-Mail-Adresse
+angefordert. Die Änderung wird erst wirksam, wenn die neue Adresse bestätigt
+wurde.
+
+Waren Sie das nicht? Dann ändern Sie bitte umgehend Ihr Passwort und wenden Sie
+sich an die Praxis.
+
+Mit freundlichen Grüßen
+{{.Practice}}

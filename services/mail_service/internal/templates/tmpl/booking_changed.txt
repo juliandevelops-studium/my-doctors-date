@@ -1,0 +1,18 @@
+Subject: Ihr Termin wurde geändert
+
+Guten Tag {{.FirstName}},
+
+Ihr Termin bei {{.Practice}} wurde geändert. Die aktuellen Angaben:
+
+  Leistung: {{.Service}}
+  Zeitpunkt: {{.StartsAt}}
+{{- if .DoctorName}}
+  Arzt/Ärztin: {{.DoctorName}}
+{{- else}}
+  Arzt/Ärztin: wird von der Praxis zugeordnet
+{{- end}}
+
+Bei Fragen wenden Sie sich bitte an die Praxis.
+
+Mit freundlichen Grüßen
+{{.Practice}}

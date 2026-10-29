@@ -1,0 +1,11 @@
+Subject: Neue Anmeldung bei Ihrem Konto
+
+Guten Tag {{.FirstName}},
+
+Ihr Konto bei {{.Practice}} wurde am {{.Time}} angemeldet.
+
+Waren Sie das nicht? Dann ändern Sie bitte umgehend Ihr Passwort und wenden Sie
+sich an die Praxis.
+
+Mit freundlichen Grüßen
+{{.Practice}}

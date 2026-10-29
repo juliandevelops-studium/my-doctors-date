@@ -1,0 +1,14 @@
+Subject: Bitte bestätigen Sie Ihre E-Mail-Adresse
+
+Guten Tag {{.FirstName}},
+
+vielen Dank für Ihre Registrierung bei {{.Practice}}. Bitte bestätigen Sie Ihre
+E-Mail-Adresse über diesen Link:
+
+{{.Link}}
+
+Der Link ist nur begrenzte Zeit und nur einmal gültig. Wenn Sie sich nicht
+registriert haben, können Sie diese Nachricht ignorieren.
+
+Mit freundlichen Grüßen
+{{.Practice}}

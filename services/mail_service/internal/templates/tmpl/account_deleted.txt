@@ -1,0 +1,10 @@
+Subject: Ihr Konto wurde gelöscht
+
+Guten Tag {{.FirstName}},
+
+Ihr Konto bei {{.Practice}} wurde gelöscht. Künftige Termine wurden abgesagt.
+Ihre Daten werden nach den gesetzlichen und praxisinternen Fristen endgültig
+entfernt.
+
+Mit freundlichen Grüßen
+{{.Practice}}

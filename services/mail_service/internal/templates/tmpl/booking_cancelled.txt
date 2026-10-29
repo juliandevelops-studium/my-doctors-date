@@ -1,0 +1,13 @@
+Subject: Ihr Termin wurde storniert
+
+Guten Tag {{.FirstName}},
+
+Ihr Termin bei {{.Practice}} wurde storniert:
+
+  Leistung: {{.Service}}
+  Zeitpunkt: {{.StartsAt}}
+
+Einen neuen Termin können Sie jederzeit in Ihrem Konto buchen.
+
+Mit freundlichen Grüßen
+{{.Practice}}

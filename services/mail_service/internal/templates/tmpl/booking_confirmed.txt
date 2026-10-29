@@ -1,0 +1,18 @@
+Subject: Ihr Termin ist bestätigt
+
+Guten Tag {{.FirstName}},
+
+Ihr Termin bei {{.Practice}} ist bestätigt:
+
+  Leistung: {{.Service}}
+  Zeitpunkt: {{.StartsAt}}
+{{- if .DoctorName}}
+  Arzt/Ärztin: {{.DoctorName}}
+{{- else}}
+  Arzt/Ärztin: wird von der Praxis zugeordnet
+{{- end}}
+
+Sie können den Termin in Ihrem Konto einsehen und stornieren.
+
+Mit freundlichen Grüßen
+{{.Practice}}

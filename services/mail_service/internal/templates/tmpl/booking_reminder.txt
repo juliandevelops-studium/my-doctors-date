@@ -1,0 +1,14 @@
+Subject: Erinnerung an Ihren Termin
+
+Guten Tag {{.FirstName}},
+
+wir erinnern Sie an Ihren Termin bei {{.Practice}}:
+
+  Leistung: {{.Service}}
+  Zeitpunkt: {{.StartsAt}}
+
+Können Sie den Termin nicht wahrnehmen, stornieren Sie ihn bitte rechtzeitig in
+Ihrem Konto.
+
+Mit freundlichen Grüßen
+{{.Practice}}

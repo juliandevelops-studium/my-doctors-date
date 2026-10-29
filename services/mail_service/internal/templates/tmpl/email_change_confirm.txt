@@ -1,0 +1,14 @@
+Subject: Neue E-Mail-Adresse bestätigen
+
+Guten Tag {{.FirstName}},
+
+für Ihr Konto bei {{.Practice}} wurde diese E-Mail-Adresse als neue Adresse
+angegeben. Bitte bestätigen Sie die Änderung über diesen Link:
+
+{{.Link}}
+
+Der Link ist nur begrenzte Zeit und nur einmal gültig. Wenn Sie das nicht
+angefordert haben, ignorieren Sie diese Nachricht.
+
+Mit freundlichen Grüßen
+{{.Practice}}
