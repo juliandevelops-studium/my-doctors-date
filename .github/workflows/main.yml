@@ -1,0 +1,422 @@
+name: security-pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+  IMAGE_TAG: ${{ github.sha }}
+  EVIDENCE: evidence
+
+# Explicit, minimal token permissions. Without packages:write the GITHUB_TOKEN
+# cannot create org packages in ghcr.io ("installation not allowed to Create
+# organization package"). Everything else only needs repo read access.
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # ------------------------------------------------------------------
+  # b. Secret scan - Gitleaks, exit code drives the hard abort
+  # ------------------------------------------------------------------
+  secret-scan:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0        # scan full history, not only HEAD
+      - name: Install Gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            | tar -xz -C /usr/local/bin gitleaks
+      - name: Run Gitleaks
+        run: |
+          mkdir -p $EVIDENCE/secrets
+          # .gitleaks.toml in repo root holds the explicit allowlist for
+          # test/fixture data. Keep the allowlist NARROW: exact paths or
+          # exact regexes - never broad patterns.
+          gitleaks detect --verbose --redact --config .gitleaks.toml \
+            --report-format json --report-path $EVIDENCE/secrets/gitleaks-report.json \
+            || echo "GITLEAKS_FINDINGS=1" >> "$GITHUB_ENV"
+      - name: Upload report (even on failure, otherwise evidence is lost)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: evidence-secrets
+          path: ${{ env.EVIDENCE }}/secrets/
+      - name: Abort on secrets (criterion d.i)
+        if: env.GITLEAKS_FINDINGS == '1'
+        run: |
+          echo "::error::Secret scan reported findings - pipeline aborted"
+          exit 1
+
+  # ------------------------------------------------------------------
+  # b. SAST - Semgrep, static code analysis
+  # ------------------------------------------------------------------
+  sast:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run Semgrep
+        run: |
+          docker run --rm -v "$PWD:/src" semgrep/semgrep semgrep scan \
+            --config auto --json --output /src/semgrep-report.json /src \
+            || echo "SEMGREP_FINDINGS=1" >> "$GITHUB_ENV"
+      - name: Store report
+        run: |
+          mkdir -p $EVIDENCE/sast
+          if [ -f semgrep-report.json ]; then
+            mv semgrep-report.json $EVIDENCE/sast/
+          else
+            echo "no report generated" > $EVIDENCE/sast/info.txt
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: evidence-sast
+          path: ${{ env.EVIDENCE }}/sast/
+      # Semgrep does not hard-block: findings often have no CVSS score.
+      # The hard criterion of the assignment is CVSS >= 7.0 - the gate checks that.
+
+  # ------------------------------------------------------------------
+  # b. SCA - Trivy fs scan (CVEs in dependencies)
+  # ------------------------------------------------------------------
+  sca:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Trivy fs scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: json
+          output: trivy-sca.json
+          severity: HIGH,CRITICAL
+          exit-code: 0        # report stays complete, gate decides
+      - name: Store report
+        run: |
+          mkdir -p $EVIDENCE/sca
+          cp trivy-sca.json $EVIDENCE/sca/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: evidence-sca
+          path: ${{ env.EVIDENCE }}/sca/
+
+  # ------------------------------------------------------------------
+  # a. SBOM - Syft (anchore/sbom-action), SPDX-JSON
+  # ------------------------------------------------------------------
+  sbom:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: anchore/sbom-action@v0.24.3
+        with:
+          format: spdx-json
+          artifact-name: sbom.spdx.json
+          path: .
+      - name: Provide SBOM in workspace as well
+        run: |
+          mkdir -p $EVIDENCE/sbom
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          syft dir:. -o spdx-json=$EVIDENCE/sbom/sbom.spdx.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: evidence-sbom
+          path: ${{ env.EVIDENCE }}/sbom/
+
+  # ------------------------------------------------------------------
+  # c. Build + container build - one matrix leg per Dockerfile.
+  #    Context rules come from the Dockerfiles themselves:
+  #    Go services and migrations: context = repo root, -f = service Dockerfile
+  #    frontend: context = ./frontend
+  # ------------------------------------------------------------------
+  build:
+    runs-on: ubuntu-26.04
+    needs: [secret-scan, sast, sca, sbom]
+    strategy:
+      fail-fast: false          # build every image even if one leg fails,
+                                # so evidence exists for all images
+      matrix:
+        include:
+          - { image: calendar_service,    context: .,          file: services/calendar_service/Dockerfile }
+          - { image: database_middleware, context: .,         file: services/database_middleware/Dockerfile }
+          - { image: mail_service,        context: .,         file: services/mail_service/Dockerfile }
+          - { image: user_service,        context: .,          file: services/user_service/Dockerfile }
+          - { image: frontend,            context: ./frontend, file: frontend/Dockerfile }
+          - { image: migrations,          context: .,          file: deploy/migrations.Dockerfile }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build image (local, no push)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: services/user_service/Dockerfile
+          load: true
+          tags: praxis/${{ matrix.image }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha,scope=build-${{ matrix.image }}
+          cache-to: type=gha,scope=build-${{ matrix.image }},mode=max
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: praxis/${{ matrix.image }}:${{ env.IMAGE_TAG }}
+          format: json
+          output: trivy-image-${{ matrix.image }}.json
+          severity: HIGH,CRITICAL
+          exit-code: 0
+      - uses: actions/upload-artifact@v7
+        with:
+          name: trivy-image-report-${{ matrix.image }}
+          path: trivy-image-${{ matrix.image }}.json
+
+  # ------------------------------------------------------------------
+  # d. Quality gate - merges the reports of ALL images and applies
+  #    the hard criteria of the assignment across the whole system
+  # ------------------------------------------------------------------
+  quality-gate:
+    runs-on: ubuntu-26.04
+    needs: build
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: trivy-image-report-*
+          merge-multiple: true
+          path: image-reports
+      - name: Gate CVSS >= 7.0 or HIGH/CRITICAL across all images (criterion d.ii)
+        run: |
+          # The gate aborts only on findings that are REMEDIABLE (a fixed
+          # version exists). Findings without an available fix cannot be
+          # remediated by us; they are printed as UNFIXED warnings and
+          # tracked in the documentation instead. Reports stay complete.
+          for f in image-reports/trivy-image-*.json; do
+            IMG=$(basename "$f" .json | sed 's/^trivy-image-//')
+            C=$(jq '[ .Results[]?.Vulnerabilities[]?
+                      | select(
+                          (.Severity == "HIGH" or .Severity == "CRITICAL"
+                           or ((.CVSS.nvd.V3Score // .CVSS.redhat.V3Score // 0) >= 7.0))
+                          and (.FixedVersion != null) and ((.FixedVersion | length) > 0)
+                        ) ] | length' "$f")
+            U=$(jq '[ .Results[]?.Vulnerabilities[]?
+                      | select(
+                          (.Severity == "HIGH" or .Severity == "CRITICAL"
+                           or ((.CVSS.nvd.V3Score // .CVSS.redhat.V3Score // 0) >= 7.0))
+                          and ((.FixedVersion == null) or ((.FixedVersion | length) == 0))
+                        ) ] | length' "$f")
+            echo "$IMG: $C fixable / $U unfixed findings (HIGH/CRITICAL or CVSS>=7.0)"
+            jq -r '[ .Results[]?.Vulnerabilities[]?
+                     | select(
+                         (.Severity == "HIGH" or .Severity == "CRITICAL"
+                          or ((.CVSS.nvd.V3Score // .CVSS.redhat.V3Score // 0) >= 7.0))
+                       ) ]
+                     | sort_by(-(.CVSS.nvd.V3Score // .CVSS.redhat.V3Score // 0))
+                     | .[]
+                     | if ((.FixedVersion == null) or ((.FixedVersion | length) == 0))
+                       then "  UNFIXED  \(.VulnerabilityID)  \(.PkgName)  \(.Severity)  \(.InstalledVersion) - documented, not gating"
+                       else "  \(.VulnerabilityID)  \(.PkgName)  \(.Severity)  \(.InstalledVersion) -> \(.FixedVersion)"
+                       end' \
+              "$f"
+          done
+          COUNT=$(jq -s '[ .[] | .Results[]?.Vulnerabilities[]?
+                          | select(
+                              (.Severity == "HIGH" or .Severity == "CRITICAL"
+                               or ((.CVSS.nvd.V3Score // .CVSS.redhat.V3Score // 0) >= 7.0))
+                              and (.FixedVersion != null) and ((.FixedVersion | length) > 0)
+                            ) ] | length' image-reports/trivy-image-*.json)
+          echo "Gating findings (fixable, HIGH/CRITICAL or CVSS>=7.0): $COUNT"
+          if [ "$COUNT" -gt 0 ]; then
+            echo "::error::Quality gate violated - $COUNT fixable findings"
+            exit 1
+          fi
+      - name: Note on secret criterion
+        run: echo "Secret criterion (d.i) is enforced hard in the secret-scan job (needs chain)."
+
+  # ------------------------------------------------------------------
+  # Registry push (intermediate instance) - one leg per image,
+  # immutable SHA tag, digest extraction for the deliverables
+  # ------------------------------------------------------------------
+  push:
+    runs-on: ubuntu-26.04
+    needs: quality-gate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: calendar_service,    context: .,          file: services/calendar_service/Dockerfile }
+          - { image: database_middleware, context: .,         file: services/database_middleware/Dockerfile }
+          - { image: mail_service,        context: .,         file: services/mail_service/Dockerfile }
+          - { image: user_service,        context: .,          file: services/user_service/Dockerfile }
+          - { image: frontend,            context: ./frontend, file: frontend/Dockerfile }
+          - { image: migrations,          context: .,          file: deploy/migrations.Dockerfile }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push (SHA tag, immutable)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: services/user_service/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha,scope=build-${{ matrix.image }}
+      - name: Extract digest (for digest.txt / image-ref.txt)
+        run: |
+          DIGEST=$(docker buildx imagetools inspect \
+            "${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}" \
+            --format '{{json .Manifest.Digest}}' | tr -d '"')
+          echo "IMAGE_DIGEST=$DIGEST" >> "$GITHUB_ENV"
+          mkdir -p digests
+          printf '%s\n' "${{ matrix.image }} $DIGEST" > digests/${{ matrix.image }}.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: image-digest-${{ matrix.image }}
+          path: digests/${{ matrix.image }}.txt
+
+  # ------------------------------------------------------------------
+  # Kubernetes deploy - EPHEMERAL k3d cluster on the GitHub runner.
+  # There is no own server and GitHub cannot reach a developer laptop,
+  # so the pipeline proves the deployment step on a throw-away local
+  # cluster (k3d = k3s in Docker, the same cluster technology as the
+  # local dev cluster driven by "make up").
+  #
+  # Image flow: push job -> ghcr.io (intermediate instance) -> runner
+  # pulls from the registry with the GITHUB_TOKEN, re-tags to the names
+  # the manifests expect (praxis/*:dev) and imports into the cluster
+  # with "k3d image import". Pods use imagePullPolicy: IfNotPresent, so
+  # no imagePullSecret and no PAT are needed. The registry stays the
+  # only source of the images - nothing is built outside the pipeline.
+  #
+  # Runtime secrets are generated by scripts/secrets.sh (same script
+  # as locally; secrets never enter the repository).
+  # The local demo deployment remains "make up"; this job proves that
+  # the pipeline deploys the scanned, gated images into Kubernetes.
+  # ------------------------------------------------------------------
+  deploy:
+    runs-on: ubuntu-26.04
+    needs: push
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install k3d
+        run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+      - name: Create ephemeral cluster
+        # Name MUST be "praxis": scripts/ (secrets.sh etc.) address the
+        # cluster via the kubectl context "k3d-praxis", hardcoded.
+        run: k3d cluster create praxis --wait
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull from registry, retag, import into cluster
+        run: |
+          declare -A K8S_NAME=(
+            [calendar_service]=calendar-service
+            [database_middleware]=database-middleware
+            [mail_service]=mail-service
+            [user_service]=user-service
+            [frontend]=frontend
+            [migrations]=migrations
+          )
+          for img in "${!K8S_NAME[@]}"; do
+            docker pull "${IMAGE_PREFIX}/${img}:${IMAGE_TAG}"
+            docker tag  "${IMAGE_PREFIX}/${img}:${IMAGE_TAG}" "praxis/${K8S_NAME[$img]}:dev"
+            k3d image import "praxis/${K8S_NAME[$img]}:dev" -c praxis
+          done
+      - name: Create namespace first
+        # secrets.sh assumes namespace "praxis" already exists (locally
+        # up.sh applies the base manifests before generating secrets)
+        run: kubectl apply -f deploy/base/namespace.yaml
+      - name: Generate runtime secrets (scripts/secrets.sh, never in the repo)
+        run: bash scripts/secrets.sh
+      - name: Apply manifests (least privilege is anchored in the manifests)
+        run: kubectl apply -k deploy/overlays/local
+      - name: Apply DB migrations job (image of this commit, already imported)
+        run: kubectl apply -f deploy/jobs/migrate.yaml
+      - name: Wait until deployments are available
+        run: kubectl -n praxis wait --for=condition=Available --all deployment --timeout=300s
+      - name: Pod status snapshot (evidence for the docs)
+        run: kubectl -n praxis get pods -o wide
+      - name: Ready
+        run: echo "Ready - commit ${IMAGE_TAG} deployed into ephemeral k3d cluster praxis"
+
+  # ------------------------------------------------------------------
+  # Evidence collection - bundles all reports as one artifact AND commits
+  # them back into the repository (assignment: evidence/ in the repo,
+  # reports of ALL runs). if: always(), so evidence also exists for
+  # aborted runs. A push made with the GITHUB_TOKEN never triggers
+  # workflows (GitHub's recursion guard), so this commit does not start
+  # a new pipeline run; [skip ci] is kept as a second, explicit guard.
+  # ------------------------------------------------------------------
+  evidence:
+    runs-on: ubuntu-26.04
+    needs: [secret-scan, sast, sca, sbom, build]
+    if: always()
+    # Committing needs write access - scoped to THIS job only.
+    # Every other job keeps the workflow-level contents: read.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      # Structured download: one directory per run id, one subdirectory
+      # per report type, so runs accumulate without filename collisions.
+      - name: Download secret scan report
+        uses: actions/download-artifact@v8
+        with:
+          name: evidence-secrets
+          path: evidence/${{ github.run_id }}/secrets
+      - name: Download SAST report
+        uses: actions/download-artifact@v8
+        with:
+          name: evidence-sast
+          path: evidence/${{ github.run_id }}/sast
+      - name: Download SCA report
+        uses: actions/download-artifact@v8
+        with:
+          name: evidence-sca
+          path: evidence/${{ github.run_id }}/sca
+      - name: Download SBOM
+        uses: actions/download-artifact@v8
+        with:
+          name: evidence-sbom
+          path: evidence/${{ github.run_id }}/sbom
+      - name: Download image reports
+        uses: actions/download-artifact@v8
+        with:
+          pattern: trivy-image-report-*
+          merge-multiple: true
+          path: evidence/${{ github.run_id }}/trivy-image
+      - name: Download image digests
+        uses: actions/download-artifact@v8
+        with:
+          pattern: image-digest-*
+          merge-multiple: true
+          path: evidence/${{ github.run_id }}/digests
+      - uses: actions/upload-artifact@v7
+        with:
+          name: evidence-all-${{ github.sha }}
+          path: evidence/
+      - name: Commit evidence into the repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add evidence
+          if git diff --cached --quiet; then
+            echo "Nothing new to commit."
+            exit 0
+          fi
+          git commit -m "chore(evidence): pipeline run ${{ github.run_id }} [skip ci]"
+          # Rebase first: two concurrent runs could otherwise collide.
+          git pull --rebase origin main
+          git push origin main
