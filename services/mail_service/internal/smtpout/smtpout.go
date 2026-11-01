@@ -4,7 +4,6 @@ package smtpout
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -16,6 +15,8 @@ import (
 	"net/smtp"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // TLS modes.
@@ -83,7 +84,7 @@ func (s *Sender) Message(to, subject, body string) (id string, msg []byte, err e
 	}
 	from := (&mail.Address{Name: s.cfg.FromName, Address: s.cfg.FromAddress}).String()
 	_, domain, _ := strings.Cut(s.cfg.FromAddress, "@")
-	id = randomID() + "@" + domain
+	id = uuid.NewString() + "@" + domain
 	var b bytes.Buffer
 	h := func(k, v string) { b.WriteString(k + ": " + v + "\r\n") }
 	h("From", from)
@@ -168,10 +169,4 @@ func (s *Sender) deliver(ctx context.Context, to string, msg []byte) error {
 		return err
 	}
 	return c.Quit()
-}
-
-func randomID() string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return fmt.Sprintf("%x", b)
 }
