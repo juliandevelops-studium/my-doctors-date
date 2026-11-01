@@ -205,13 +205,11 @@ func accessLog(log *slog.Logger) func(http.Handler) http.Handler {
 }
 
 func errorHandler(log *slog.Logger, w http.ResponseWriter, r *http.Request, err error) {
-	var de *store.Error
-	if errors.As(err, &de) {
+	if de, ok := errors.AsType[*store.Error](err); ok {
 		writeProblem(w, de.Status, de.Code, de.Title)
 		return
 	}
-	var mbe *http.MaxBytesError
-	if errors.As(err, &mbe) {
+	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 		writeProblem(w, http.StatusRequestEntityTooLarge, "too_large", "Request body too large")
 		return
 	}
