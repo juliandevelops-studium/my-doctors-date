@@ -1,0 +1,8 @@
+title = "gitleaks allowlist for test data"
+
+[allowlist]
+description = "Test fixtures and pipeline evidence - no live secrets"
+paths = [
+  '''^evidence/.*''',
+  '''.*\.test\..*''',
+]
