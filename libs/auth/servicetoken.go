@@ -1,4 +1,4 @@
-// Package praxisauth holds the token code shared by all backend services: service tokens (api/internal.md section 3),
+// Package praxisauth holds the token code shared by all backend services: service tokens (docs/api/internal.md section 3),
 // user JWTs (section 1) and JWKS (section 2). Only dependency besides the standard library: google/uuid.
 package praxisauth
 
