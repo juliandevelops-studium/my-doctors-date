@@ -1,3 +1,14 @@
+# Route inventory and authorisation rules. Source of truth for roles (SR.03, Rollen-Rechte-Matrix in notes/1_Structure.md).
+# docs/authz-matrix.md is generated from this file: `make check-contracts`.
+#
+# access:
+#   public     no token (login, registration, password reset links, probes). Rate limited.
+#   user       valid user JWT; `roles` lists who may call. `any` = every authenticated user (every role is also a Nutzer, decision 5).
+#   service    service token (docs/api/internal.md). `callers` lists the allowed issuers.
+#   internal   no token, cluster-internal only, public data (JWKS, probes). Not routed by Traefik.
+# scope (access: user): `full` (default) or `setup`. `setup` routes also accept the restricted token of UF-03 / decision 11.
+# ownership: rule that the service enforces in the database query. A violation gives 404, never 403 (SR.03).
+# note: free text; the `matrix` column of the old repo is covered by notes/1_Structure.md.
 version: 1
 services:
   - user_service
@@ -10,7 +21,433 @@ roles:
   - desk
   - organisator
   - systemadmin
+
 routes:
+  - service: user_service
+    operationId: register
+    method: POST
+    path: /v1/auth/register
+    access: public
+    note: "Neutral 202 whether or not the e-mail exists."
+  - service: user_service
+    operationId: verifyEmail
+    method: POST
+    path: /v1/auth/verify-email
+    access: public
+    note: "One-time token from the mail link."
+  - service: user_service
+    operationId: login
+    method: POST
+    path: /v1/auth/login
+    access: public
+    note: "SR.05 counter. Returns an MFA challenge, never a full token."
+  - service: user_service
+    operationId: loginMfa
+    method: POST
+    path: /v1/auth/login/mfa
+    access: public
+    note: "Needs the MFA challenge token. A wrong code counts for SR.05. Returns scope=setup if MFA is not yet confirmed."
+  - service: user_service
+    operationId: logout
+    method: POST
+    path: /v1/auth/logout
+    access: user
+    roles:
+      - any
+    scope: setup
+    ownership: "own token only"
+  - service: user_service
+    operationId: forgotPassword
+    method: POST
+    path: /v1/auth/password/forgot
+    access: public
+    note: "Always neutral 202."
+  - service: user_service
+    operationId: resetPassword
+    method: POST
+    path: /v1/auth/password/reset
+    access: public
+    note: "One-time token. Sets sessions_valid_after. MFA stays active."
+  - service: user_service
+    operationId: confirmEmailChange
+    method: POST
+    path: /v1/auth/email-change/confirm
+    access: public
+    note: "One-time token sent to the new address."
+  - service: user_service
+    operationId: getJwks
+    method: GET
+    path: /v1/jwks
+    access: internal
+    note: "Public keys only."
+  - service: user_service
+    operationId: userServiceHealth
+    method: GET
+    path: /healthz
+    access: internal
+  - service: user_service
+    operationId: getMe
+    method: GET
+    path: /v1/me
+    access: user
+    roles:
+      - any
+    scope: setup
+    ownership: "sub from token"
+  - service: user_service
+    operationId: updateMe
+    method: PATCH
+    path: /v1/me
+    access: user
+    roles:
+      - any
+    ownership: "sub from token"
+    note: "Address only for the role patient."
+  - service: user_service
+    operationId: changePassword
+    method: POST
+    path: /v1/me/password
+    access: user
+    roles:
+      - any
+    scope: setup
+    ownership: "sub from token"
+    note: "Needs the current password. SR.04. Sets sessions_valid_after and returns a new token."
+  - service: user_service
+    operationId: requestEmailChange
+    method: POST
+    path: /v1/me/email
+    access: user
+    roles:
+      - any
+    ownership: "sub from token"
+    note: "Needs the current password."
+  - service: user_service
+    operationId: mfaSetupStart
+    method: POST
+    path: /v1/me/mfa/setup
+    access: user
+    roles:
+      - any
+    scope: setup
+    ownership: "sub from token"
+    note: "409 mfa_active if MFA is confirmed. Replace MFA only via mfaDisable (decision 22)."
+  - service: user_service
+    operationId: mfaSetupConfirm
+    method: POST
+    path: /v1/me/mfa/confirm
+    access: user
+    roles:
+      - any
+    scope: setup
+    ownership: "sub from token"
+    note: "Returns recovery codes once and a token with scope=full."
+  - service: user_service
+    operationId: mfaDisable
+    method: POST
+    path: /v1/me/mfa/disable
+    access: user
+    roles:
+      - any
+    ownership: "sub from token"
+    note: "Needs password and a valid code. Revokes all sessions of the user. No admin override."
+  - service: user_service
+    operationId: mfaRegenerateRecoveryCodes
+    method: POST
+    path: /v1/me/mfa/recovery-codes
+    access: user
+    roles:
+      - any
+    ownership: "sub from token"
+    note: "Needs a valid current code."
+  - service: user_service
+    operationId: deleteOwnAccount
+    method: POST
+    path: /v1/me/deletion
+    access: user
+    roles:
+      - any
+    ownership: "sub from token"
+    note: "Needs password and MFA code."
+  - service: user_service
+    operationId: adminListUsers
+    method: GET
+    path: /v1/admin/users
+    access: user
+    roles:
+      - systemadmin
+    note: "No appointment data."
+  - service: user_service
+    operationId: adminCreateUser
+    method: POST
+    path: /v1/admin/users
+    access: user
+    roles:
+      - systemadmin
+    note: "Sends a reset link, sets must_change_password."
+  - service: user_service
+    operationId: adminGetUser
+    method: GET
+    path: /v1/admin/users/{userId}
+    access: user
+    roles:
+      - systemadmin
+  - service: user_service
+    operationId: adminSetRoles
+    method: PUT
+    path: /v1/admin/users/{userId}/roles
+    access: user
+    roles:
+      - systemadmin
+    note: "systemadmin is exclusive (decision 9). Revokes the sessions of the target."
+  - service: user_service
+    operationId: adminResetPassword
+    method: POST
+    path: /v1/admin/users/{userId}/password-reset
+    access: user
+    roles:
+      - systemadmin
+  - service: user_service
+    operationId: adminUnlockUser
+    method: POST
+    path: /v1/admin/users/{userId}/unlock
+    access: user
+    roles:
+      - systemadmin
+  - service: user_service
+    operationId: adminDeleteUser
+    method: DELETE
+    path: /v1/admin/users/{userId}
+    access: user
+    roles:
+      - systemadmin
+    note: "An admin cannot delete the own account here."
+  - service: user_service
+    operationId: adminListAuditLog
+    method: GET
+    path: /v1/admin/audit-log
+    access: user
+    roles:
+      - systemadmin
+  - service: user_service
+    operationId: adminGetRetention
+    method: GET
+    path: /v1/admin/retention
+    access: user
+    roles:
+      - systemadmin
+  - service: user_service
+    operationId: adminSetRetention
+    method: PUT
+    path: /v1/admin/retention
+    access: user
+    roles:
+      - systemadmin
+    note: "C must be >= B."
+  - service: calendar_service
+    operationId: listSpecialties
+    method: GET
+    path: /v1/specialties
+    access: user
+    roles:
+      - patient
+      - doctor
+      - desk
+      - organisator
+  - service: calendar_service
+    operationId: createSpecialty
+    method: POST
+    path: /v1/specialties
+    access: user
+    roles:
+      - organisator
+  - service: calendar_service
+    operationId: deleteSpecialty
+    method: DELETE
+    path: /v1/specialties/{specialtyId}
+    access: user
+    roles:
+      - organisator
+    note: "409 if services or doctors still use it."
+  - service: calendar_service
+    operationId: listServices
+    method: GET
+    path: /v1/services
+    access: user
+    roles:
+      - patient
+      - doctor
+      - desk
+      - organisator
+  - service: calendar_service
+    operationId: createService
+    method: POST
+    path: /v1/services
+    access: user
+    roles:
+      - organisator
+  - service: calendar_service
+    operationId: updateService
+    method: PUT
+    path: /v1/services/{serviceId}
+    access: user
+    roles:
+      - organisator
+    note: "Warns when bookings exist (UF-09 error case)."
+  - service: calendar_service
+    operationId: deleteService
+    method: DELETE
+    path: /v1/services/{serviceId}
+    access: user
+    roles:
+      - organisator
+    note: "409 if bookings reference it. The service Sonstiges cannot be deleted."
+  - service: calendar_service
+    operationId: importServices
+    method: POST
+    path: /v1/services/import
+    access: user
+    roles:
+      - organisator
+    note: "JSON template, schema validated. dry_run supported."
+  - service: calendar_service
+    operationId: listDoctors
+    method: GET
+    path: /v1/doctors
+    access: user
+    roles:
+      - patient
+      - doctor
+      - desk
+      - organisator
+    note: "Name and specialties only."
+  - service: calendar_service
+    operationId: getDoctorSchedule
+    method: GET
+    path: /v1/doctors/{doctorId}/schedule
+    access: user
+    roles:
+      - patient
+      - doctor
+      - desk
+      - organisator
+  - service: calendar_service
+    operationId: updateDoctorSchedule
+    method: PUT
+    path: /v1/doctors/{doctorId}/schedule
+    access: user
+    roles:
+      - organisator
+    note: "Specialties and working days in one call."
+  - service: calendar_service
+    operationId: getCalendarBlocks
+    method: GET
+    path: /v1/calendar/blocks
+    access: user
+    roles:
+      - patient
+      - doctor
+      - desk
+      - organisator
+    note: "free/busy only. No patient, reason or infos."
+  - service: calendar_service
+    operationId: getAvailability
+    method: GET
+    path: /v1/calendar/availability
+    access: user
+    roles:
+      - patient
+      - desk
+      - organisator
+    ownership: "patient with a main doctor: only that doctor"
+    note: "Bookable start times for a service. Union over matching doctors if no main doctor."
+  - service: calendar_service
+    operationId: createBooking
+    method: POST
+    path: /v1/bookings
+    access: user
+    roles:
+      - patient
+      - desk
+      - organisator
+    ownership: "patient: patient_id = sub (body value ignored). desk/organisator: patient_id required."
+    note: "Overlap rejected in the database (409). Mail booking_confirmed."
+  - service: calendar_service
+    operationId: listBookings
+    method: GET
+    path: /v1/bookings
+    access: user
+    roles:
+      - patient
+      - doctor
+      - desk
+      - organisator
+    ownership: "patient: patient_id = sub. doctor: doctor_id = sub. desk/organisator: all."
+    note: "Filters patient_id, doctor_id, unassigned only for desk/organisator (else ignored). Systemadmin: 403."
+  - service: calendar_service
+    operationId: getBooking
+    method: GET
+    path: /v1/bookings/{bookingId}
+    access: user
+    roles:
+      - patient
+      - doctor
+      - desk
+      - organisator
+    ownership: "patient: own. doctor: own calendar. desk/organisator: all. Else 404."
+  - service: calendar_service
+    operationId: updateBooking
+    method: PATCH
+    path: /v1/bookings/{bookingId}
+    access: user
+    roles:
+      - desk
+      - organisator
+    note: "Reschedule, service, reason, infos. Mail booking_changed."
+  - service: calendar_service
+    operationId: cancelBooking
+    method: POST
+    path: /v1/bookings/{bookingId}/cancel
+    access: user
+    roles:
+      - patient
+      - doctor
+      - desk
+      - organisator
+    ownership: "patient: own. doctor: own calendar. desk/organisator: all. Else 404."
+    note: "Only future bookings. Clears reason and infos. Mail booking_cancelled."
+  - service: calendar_service
+    operationId: assignBookingDoctor
+    method: PUT
+    path: /v1/bookings/{bookingId}/doctor
+    access: user
+    roles:
+      - desk
+      - organisator
+    note: "409 if the doctor is busy. Mail booking_changed."
+  - service: calendar_service
+    operationId: listPatients
+    method: GET
+    path: /v1/patients
+    access: user
+    roles:
+      - desk
+      - organisator
+    note: "Search by name or e-mail. Systemadmin: 403 (decision 15)."
+  - service: calendar_service
+    operationId: setMainDoctor
+    method: PUT
+    path: /v1/patients/{patientId}/main-doctor
+    access: user
+    roles:
+      - desk
+      - organisator
+    note: "doctor_id null removes the main doctor."
+  - service: calendar_service
+    operationId: calendarServiceHealth
+    method: GET
+    path: /healthz
+    access: internal
   - service: mail_service
     operationId: sendMail
     method: POST
@@ -19,9 +456,24 @@ routes:
     callers:
       - user_service
       - calendar_service
-    note: Template allow list per caller (api/internal.md section 5).
+    note: "Template allow list per caller (docs/api/internal.md section 5)."
   - service: mail_service
     operationId: mailServiceHealth
+    method: GET
+    path: /healthz
+    access: internal
+  - service: database_middleware
+    operationId: "*"
+    method: POST
+    path: /v1/ops/{operation}
+    access: service
+    callers:
+      - user_service
+      - calendar_service
+      - purge_job
+    note: "See x-allowed-callers per operation."
+  - service: database_middleware
+    operationId: databaseMiddlewareHealth
     method: GET
     path: /healthz
     access: internal

@@ -656,7 +656,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Service token (EdDSA, at most 60 s, aud=database_middleware). See api/internal.md section 3.
+      description: Service token (EdDSA, at most 60 s, aud=database_middleware). See docs/api/internal.md section 3.
 
   responses:
     Unauthorized:

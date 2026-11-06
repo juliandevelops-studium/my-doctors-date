@@ -56,7 +56,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Service token (EdDSA, at most 60 s, aud=mail_service). See api/internal.md section 3.
+      description: Service token (EdDSA, at most 60 s, aud=mail_service). See docs/api/internal.md section 3.
 
   responses:
     Unauthorized:
@@ -102,7 +102,7 @@ components:
     MailParams:
       type: object
       additionalProperties: false
-      description: Which params are required depends on the template (api/internal.md section 5).
+      description: Which params are required depends on the template (docs/api/internal.md section 5).
       properties:
         first_name: {type: string, minLength: 1, maxLength: 100}
         link: {type: string, format: uri, maxLength: 500}

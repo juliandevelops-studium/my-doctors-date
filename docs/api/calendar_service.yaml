@@ -1,0 +1,824 @@
+openapi: 3.0.3
+info:
+  title: calendar_service
+  version: 1.0.0
+  description: |
+    Leistungsangebot, doctors' schedules, free/busy calendar and bookings.
+    Conventions: docs/api/CONVENTIONS.md. Roles and ownership per route: `docs/api/authorization.yaml`. Token format: `docs/api/internal.md`.
+    The caller's identity and roles come only from the validated token. Foreign objects answer 404.
+servers:
+  - url: http://calendar-service.praxis.svc.cluster.local:8080
+    description: In-cluster only. The browser reaches it through frontend_provider.
+security:
+  - bearerAuth: []
+tags:
+  - {name: practice, description: "Specialties, services, doctors"}
+  - {name: calendar, description: "Free/busy blocks and availability"}
+  - {name: bookings, description: "Appointments"}
+  - {name: patients, description: "Reception tasks"}
+  - {name: internal, description: "Cluster-internal"}
+
+paths:
+  /healthz:
+    get:
+      operationId: calendarServiceHealth
+      tags: [internal]
+      summary: Liveness probe
+      security: []
+      responses:
+        "200": {description: Alive}
+
+  # ------------------------------------------------------------------ specialties
+  /v1/specialties:
+    get:
+      operationId: listSpecialties
+      tags: [practice]
+      summary: List specialties (Fachrichtungen)
+      responses:
+        "200":
+          description: All specialties, sorted by name
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SpecialtyList"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      operationId: createSpecialty
+      tags: [practice]
+      summary: Create a specialty (UF-09)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SpecialtyInput"}
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location: {schema: {type: string, maxLength: 200}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Specialty"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/specialties/{specialtyId}:
+    parameters:
+      - {name: specialtyId, in: path, required: true, schema: {type: string, format: uuid}}
+    delete:
+      operationId: deleteSpecialty
+      tags: [practice]
+      summary: Delete a specialty (UF-09)
+      responses:
+        "204": {description: Deleted}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+
+  # ------------------------------------------------------------------ services
+  /v1/services:
+    get:
+      operationId: listServices
+      tags: [practice]
+      summary: List the Leistungsangebot
+      responses:
+        "200":
+          description: All services, sorted by name. "Sonstiges" has `is_other=true`.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ServiceList"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      operationId: createService
+      tags: [practice]
+      summary: Create a service (UF-09)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ServiceInput"}
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location: {schema: {type: string, maxLength: 200}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Service"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/services/import:
+    post:
+      operationId: importServices
+      tags: [practice]
+      summary: Import a JSON template (UF-09)
+      description: |
+        Format of `services/database_middleware/seeds/*.json`. Existing names are updated, new names are created.
+        With `dry_run=true` nothing is stored and the result lists what would change.
+      parameters:
+        - {name: dry_run, in: query, schema: {type: boolean, default: false}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ServiceImport"}
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ImportResult"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/services/{serviceId}:
+    parameters:
+      - {name: serviceId, in: path, required: true, schema: {type: string, format: uuid}}
+    put:
+      operationId: updateService
+      tags: [practice]
+      summary: Replace a service (UF-09)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ServiceInput"}
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Service"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+    delete:
+      operationId: deleteService
+      tags: [practice]
+      summary: Delete a service (UF-09)
+      description: 409 if bookings reference it or if it is "Sonstiges".
+      responses:
+        "204": {description: Deleted}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+
+  # ------------------------------------------------------------------ doctors
+  /v1/doctors:
+    get:
+      operationId: listDoctors
+      tags: [practice]
+      summary: List doctors with their specialties
+      parameters:
+        - {name: specialty_id, in: query, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: Doctors, sorted by last name
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DoctorList"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /v1/doctors/{doctorId}/schedule:
+    parameters:
+      - {name: doctorId, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: getDoctorSchedule
+      tags: [practice]
+      summary: Specialties and working days of a doctor
+      responses:
+        "200":
+          description: Schedule
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Schedule"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    put:
+      operationId: updateDoctorSchedule
+      tags: [practice]
+      summary: Replace specialties and working days of a doctor (UF-09)
+      description: Working days of one weekday must not overlap. Existing bookings stay untouched; the response lists those now outside the working time.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/Schedule"}
+      responses:
+        "200":
+          description: Stored schedule
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ScheduleResult"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  # ------------------------------------------------------------------ calendar
+  /v1/calendar/blocks:
+    get:
+      operationId: getCalendarBlocks
+      tags: [calendar]
+      summary: Free and busy blocks without details (UF-05, UF-08)
+      description: Contains no patient, reason or infos. Maximum range 62 days.
+      parameters:
+        - {$ref: "#/components/parameters/From"}
+        - {$ref: "#/components/parameters/To"}
+        - {name: doctor_id, in: query, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: Blocks, sorted by start
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/BlockList"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/calendar/availability:
+    get:
+      operationId: getAvailability
+      tags: [calendar]
+      summary: Bookable start times for a service (UF-05, UF-06)
+      description: |
+        A patient with a main doctor sees only that doctor's times. A patient without one sees the union over all
+        doctors with the matching specialty (without `doctor_id`; the doctor is assigned on booking). Staff see `doctor_id`.
+        "Sonstiges" returns the union over all doctors.
+      parameters:
+        - {name: service_id, in: query, required: true, schema: {type: string, format: uuid}}
+        - {$ref: "#/components/parameters/From"}
+        - {$ref: "#/components/parameters/To"}
+        - {name: patient_id, in: query, description: "Staff only: apply the main doctor of this patient", schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: Slots, sorted by start
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SlotList"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  # ------------------------------------------------------------------ bookings
+  /v1/bookings:
+    get:
+      operationId: listBookings
+      tags: [bookings]
+      summary: List bookings in the scope of the caller
+      description: |
+        Scope by role: patient = own bookings, doctor = own calendar, desk/organisator = all.
+        `patient_id`, `doctor_id` and `unassigned` are honoured only for desk/organisator and ignored otherwise.
+        Cancelled and soft-deleted bookings are never listed. Sorted by start.
+      parameters:
+        - {$ref: "#/components/parameters/FromOptional"}
+        - {$ref: "#/components/parameters/ToOptional"}
+        - {name: when, in: query, schema: {type: string, enum: [upcoming, past]}, description: "upcoming = ends in the future, past = ended"}
+        - {name: patient_id, in: query, schema: {type: string, format: uuid}}
+        - {name: doctor_id, in: query, schema: {type: string, format: uuid}}
+        - {name: unassigned, in: query, schema: {type: boolean}, description: "Only bookings without a doctor (UF-06)"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: Page of bookings
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/BookingPage"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      operationId: createBooking
+      tags: [bookings]
+      summary: Book an appointment (UF-05, UF-06, UF-08)
+      description: |
+        patient: the patient is the caller, `patient_id` and `doctor_id` in the body are ignored. The doctor is the main doctor,
+        otherwise one with the matching specialty who is free. "Sonstiges" gets no doctor.
+        desk/organisator: `patient_id` is required, `doctor_id` is optional.
+        The overlap is rejected by the database: 409 `slot_taken`. A confirmation mail is sent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/BookingCreate"}
+      responses:
+        "201":
+          description: Booked
+          headers:
+            Location: {schema: {type: string, maxLength: 200}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Booking"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/bookings/{bookingId}:
+    parameters:
+      - {$ref: "#/components/parameters/BookingId"}
+    get:
+      operationId: getBooking
+      tags: [bookings]
+      summary: Show a booking including reason and infos
+      description: patient = own, doctor = own calendar, desk/organisator = all. Otherwise 404.
+      responses:
+        "200":
+          description: Booking
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Booking"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    patch:
+      operationId: updateBooking
+      tags: [bookings]
+      summary: Change or reschedule a booking (UF-06, UF-08)
+      description: Target slot must be free (409 `slot_taken`). Only future bookings. The patient gets a mail.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/BookingUpdate"}
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Booking"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/bookings/{bookingId}/cancel:
+    parameters:
+      - {$ref: "#/components/parameters/BookingId"}
+    post:
+      operationId: cancelBooking
+      tags: [bookings]
+      summary: Cancel a booking (UF-07, UF-08)
+      description: |
+        patient = own, doctor = own calendar, desk/organisator = all, otherwise 404. Only future bookings (409 `booking_in_past`).
+        Sets status `storniert` and `deleted_at`, clears reason and infos (Löschkonzept). The patient gets a mail.
+        No cancellation deadline (decision 6).
+      responses:
+        "204": {description: Cancelled}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+
+  /v1/bookings/{bookingId}/doctor:
+    parameters:
+      - {$ref: "#/components/parameters/BookingId"}
+    put:
+      operationId: assignBookingDoctor
+      tags: [bookings]
+      summary: Assign a doctor, e.g. for "Sonstiges" (UF-06)
+      description: 409 `slot_taken` if the doctor is busy (reception moves the booking or picks another doctor). The patient gets a mail.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/DoctorAssignment"}
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Booking"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  # ------------------------------------------------------------------ patients
+  /v1/patients:
+    get:
+      operationId: listPatients
+      tags: [patients]
+      summary: Search patients (UF-08)
+      parameters:
+        - {name: q, in: query, schema: {type: string, minLength: 2, maxLength: 100}, description: "Name or e-mail contains"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: Patients, sorted by last name
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PatientPage"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /v1/patients/{patientId}/main-doctor:
+    parameters:
+      - {name: patientId, in: path, required: true, schema: {type: string, format: uuid}}
+    put:
+      operationId: setMainDoctor
+      tags: [patients]
+      summary: Assign or remove the main doctor (UF-08)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/MainDoctorAssignment"}
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Patient"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: User JWT (EdDSA, 15 min) issued by user_service. See docs/api/internal.md.
+
+  parameters:
+    BookingId:
+      name: bookingId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    From:
+      name: from
+      in: query
+      required: true
+      schema: {type: string, format: date-time}
+    To:
+      name: to
+      in: query
+      required: true
+      schema: {type: string, format: date-time}
+    FromOptional:
+      name: from
+      in: query
+      schema: {type: string, format: date-time}
+    ToOptional:
+      name: to
+      in: query
+      schema: {type: string, format: date-time}
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+    Offset:
+      name: offset
+      in: query
+      schema: {type: integer, minimum: 0, maximum: 1000000, default: 0}
+
+  responses:
+    BadRequest:
+      description: Malformed request or parameter
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Unauthorized:
+      description: No token, invalid or expired token, or scope=setup token
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Forbidden:
+      description: Role not allowed on this route (deny by default)
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    NotFound:
+      description: Object does not exist or belongs to someone else
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Conflict:
+      description: Conflict with the current state (slot taken, object in use, booking in the past)
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Unprocessable:
+      description: Validation failed
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: {type: string, maxLength: 200, example: "about:blank"}
+        title: {type: string, maxLength: 200, example: "Slot already taken"}
+        status: {type: integer, minimum: 400, maximum: 599, example: 409}
+        code: {type: string, maxLength: 64, example: "slot_taken"}
+        detail: {type: string, maxLength: 500}
+        errors:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [field, code]
+            properties:
+              field: {type: string, maxLength: 100}
+              code: {type: string, maxLength: 64}
+
+    Specialty:
+      type: object
+      required: [id, name]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string, minLength: 1, maxLength: 100, example: Allgemeinmedizin}
+    SpecialtyInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+    SpecialtyList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/Specialty"}
+
+    Service:
+      type: object
+      required: [id, name, duration_minutes, is_other]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string, minLength: 1, maxLength: 100, example: Erstuntersuchung}
+        duration_minutes: {type: integer, minimum: 5, maximum: 480, example: 30}
+        specialty_id: {type: string, format: uuid, nullable: true}
+        specialty_name: {type: string, maxLength: 100, nullable: true}
+        is_other: {type: boolean}
+    ServiceInput:
+      type: object
+      additionalProperties: false
+      required: [name, duration_minutes]
+      description: '`specialty_id` is required unless the service is "Sonstiges" (cannot be created or changed to `is_other`).'
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        duration_minutes: {type: integer, minimum: 5, maximum: 480}
+        specialty_id: {type: string, format: uuid}
+    ServiceList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items: {$ref: "#/components/schemas/Service"}
+    ServiceImport:
+      type: object
+      additionalProperties: false
+      properties:
+        specialties:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required: [name]
+            properties:
+              name: {type: string, minLength: 1, maxLength: 100}
+        services:
+          type: array
+          maxItems: 500
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, duration_minutes]
+            properties:
+              name: {type: string, minLength: 1, maxLength: 100}
+              duration_minutes: {type: integer, minimum: 5, maximum: 480}
+              specialty: {type: string, maxLength: 100, nullable: true, description: "Name of a specialty in the file or in the system"}
+              is_other: {type: boolean}
+    ImportResult:
+      type: object
+      required: [dry_run, specialties_created, services_created, services_updated, warnings]
+      properties:
+        dry_run: {type: boolean}
+        specialties_created: {type: integer, minimum: 0, maximum: 1000000}
+        services_created: {type: integer, minimum: 0, maximum: 1000000}
+        services_updated: {type: integer, minimum: 0, maximum: 1000000}
+        warnings:
+          type: array
+          maxItems: 100
+          items: {type: string, maxLength: 300}
+
+    Doctor:
+      type: object
+      required: [id, first_name, last_name, specialties]
+      properties:
+        id: {type: string, format: uuid}
+        first_name: {type: string, maxLength: 100}
+        last_name: {type: string, maxLength: 100}
+        specialties:
+          type: array
+          maxItems: 50
+          items: {$ref: "#/components/schemas/Specialty"}
+    DoctorList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/Doctor"}
+    WorkingDay:
+      type: object
+      additionalProperties: false
+      required: [weekday, start_time, end_time]
+      properties:
+        weekday: {type: integer, minimum: 1, maximum: 7, description: "ISO: 1 = Monday", example: 1}
+        start_time: {type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$', example: "08:00"}
+        end_time: {type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$', example: "12:00"}
+    Schedule:
+      type: object
+      additionalProperties: false
+      required: [specialty_ids, working_days]
+      properties:
+        specialty_ids:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: {type: string, format: uuid}
+        working_days:
+          type: array
+          maxItems: 28
+          items: {$ref: "#/components/schemas/WorkingDay"}
+    ScheduleResult:
+      type: object
+      required: [schedule, bookings_outside_hours]
+      properties:
+        schedule: {$ref: "#/components/schemas/Schedule"}
+        bookings_outside_hours:
+          type: array
+          maxItems: 500
+          description: Future bookings now outside the working time, marked for rescheduling (UF-09 error case)
+          items: {type: string, format: uuid}
+
+    Block:
+      type: object
+      required: [doctor_id, starts_at, ends_at, state]
+      properties:
+        doctor_id: {type: string, format: uuid}
+        starts_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time}
+        state: {type: string, enum: [free, busy]}
+    BlockList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 5000
+          items: {$ref: "#/components/schemas/Block"}
+    Slot:
+      type: object
+      required: [starts_at, ends_at]
+      properties:
+        starts_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time}
+        doctor_id: {type: string, format: uuid, description: "Only for desk/organisator, and for patients with a main doctor"}
+    SlotList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 5000
+          items: {$ref: "#/components/schemas/Slot"}
+
+    BookingStatus:
+      type: string
+      enum: [angefragt, bestaetigt, storniert, abgeschlossen]
+    PersonRef:
+      type: object
+      required: [id, first_name, last_name]
+      properties:
+        id: {type: string, format: uuid}
+        first_name: {type: string, maxLength: 100}
+        last_name: {type: string, maxLength: 100}
+    PatientRef:
+      allOf:
+        - $ref: "#/components/schemas/PersonRef"
+        - type: object
+          properties:
+            email: {type: string, format: email, maxLength: 254}
+            phone: {type: string, maxLength: 30, nullable: true}
+    Booking:
+      type: object
+      required: [id, service, starts_at, ends_at, status]
+      properties:
+        id: {type: string, format: uuid}
+        service:
+          type: object
+          required: [id, name]
+          properties:
+            id: {type: string, format: uuid}
+            name: {type: string, maxLength: 100}
+        doctor:
+          allOf:
+            - $ref: "#/components/schemas/PersonRef"
+          nullable: true
+          description: null until reception assigns a doctor ("Sonstiges")
+        patient:
+          allOf:
+            - $ref: "#/components/schemas/PatientRef"
+          description: Present for doctor, desk and organisator. Absent for patient (own booking).
+        starts_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time}
+        status: {$ref: "#/components/schemas/BookingStatus"}
+        reason: {type: string, maxLength: 200, nullable: true}
+        info: {type: string, maxLength: 2000, nullable: true}
+    BookingPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/Booking"}
+        total: {type: integer, minimum: 0, maximum: 1000000}
+    BookingCreate:
+      type: object
+      additionalProperties: false
+      required: [service_id, starts_at]
+      properties:
+        service_id: {type: string, format: uuid}
+        starts_at: {type: string, format: date-time}
+        reason: {type: string, maxLength: 200}
+        info: {type: string, maxLength: 2000}
+        patient_id: {type: string, format: uuid, description: "Required for desk/organisator, ignored for patient"}
+        doctor_id: {type: string, format: uuid, description: "Optional for desk/organisator, ignored for patient"}
+    BookingUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        service_id: {type: string, format: uuid}
+        starts_at: {type: string, format: date-time}
+        reason: {type: string, maxLength: 200, nullable: true}
+        info: {type: string, maxLength: 2000, nullable: true}
+    DoctorAssignment:
+      type: object
+      additionalProperties: false
+      required: [doctor_id]
+      properties:
+        doctor_id: {type: string, format: uuid}
+
+    Patient:
+      type: object
+      required: [id, first_name, last_name, email]
+      properties:
+        id: {type: string, format: uuid}
+        first_name: {type: string, maxLength: 100}
+        last_name: {type: string, maxLength: 100}
+        email: {type: string, format: email, maxLength: 254}
+        phone: {type: string, maxLength: 30, nullable: true}
+        main_doctor_id: {type: string, format: uuid, nullable: true}
+    PatientPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/Patient"}
+        total: {type: integer, minimum: 0, maximum: 1000000}
+    MainDoctorAssignment:
+      type: object
+      additionalProperties: false
+      required: [doctor_id]
+      properties:
+        doctor_id: {type: string, format: uuid, nullable: true}

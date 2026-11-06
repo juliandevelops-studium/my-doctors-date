@@ -1,0 +1,912 @@
+openapi: 3.0.3
+info:
+  title: user_service
+  version: 1.0.0
+  description: |
+    Authentication, MFA, token issuing, own account, user and role management, audit log and retention settings.
+    Conventions: docs/api/CONVENTIONS.md. Roles per route: `docs/api/authorization.yaml`. Token format: `docs/api/internal.md`.
+servers:
+  - url: http://user-service.praxis.svc.cluster.local:8080
+    description: In-cluster only. The browser reaches it through frontend_provider.
+security:
+  - bearerAuth: []
+tags:
+  - {name: auth, description: "Registration, login, MFA login, password reset"}
+  - {name: me, description: "Own account"}
+  - {name: admin, description: "Systemadmin only"}
+  - {name: internal, description: "Cluster-internal"}
+
+paths:
+  /healthz:
+    get:
+      operationId: userServiceHealth
+      tags: [internal]
+      summary: Liveness probe
+      security: []
+      responses:
+        "200": {description: Alive}
+
+  /v1/jwks:
+    get:
+      operationId: getJwks
+      tags: [internal]
+      summary: Public signing keys (JWKS)
+      description: Not routed by Traefik. Public keys only.
+      security: []
+      responses:
+        "200":
+          description: Key set
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Jwks"}
+
+  # ------------------------------------------------------------------ auth
+  /v1/auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a patient (UF-01)
+      description: Always answers 202, whether or not the e-mail already exists. A verification mail is sent only for new addresses.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RegisterRequest"}
+      responses:
+        "202": {description: "Accepted. Verification mail sent if the address is new."}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+
+  /v1/auth/verify-email:
+    post:
+      operationId: verifyEmail
+      tags: [auth]
+      summary: Confirm the e-mail address (UF-01)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/TokenRequest"}
+      responses:
+        "204": {description: Account is active}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+
+  /v1/auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Password step of the login (UF-02)
+      description: |
+        Checks the password and the lockout (SR.05). On success returns an MFA challenge, never an access token.
+        Wrong password, unknown e-mail, locked and disabled accounts all return the same 401 `invalid_credentials`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginRequest"}
+      responses:
+        "200":
+          description: Password correct
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MfaChallenge"}
+        "401": {$ref: "#/components/responses/InvalidCredentials"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+
+  /v1/auth/login/mfa:
+    post:
+      operationId: loginMfa
+      tags: [auth]
+      summary: MFA step of the login (UF-02, UF-03)
+      description: |
+        Exchanges the challenge and a TOTP code (or a recovery code, which is then used up) for an access token.
+        Users without confirmed MFA, and users with `must_change_password`, receive `scope=setup`.
+        A wrong code counts as a failed attempt (SR.05).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginMfaRequest"}
+      responses:
+        "200":
+          description: Access token
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TokenResponse"}
+        "401": {$ref: "#/components/responses/InvalidCredentials"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+
+  /v1/auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Revoke the own token
+      responses:
+        "204": {description: Token revoked}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/auth/password/forgot:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Request a password reset link (UF-12)
+      description: Always answers 202.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ForgotPasswordRequest"}
+      responses:
+        "202": {description: Accepted}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+
+  /v1/auth/password/reset:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Set a new password with a reset token (UF-10, UF-12)
+      description: The token is single use and short lived. All sessions of the user become invalid. MFA stays active.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ResetPasswordRequest"}
+      responses:
+        "204": {description: Password changed}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+
+  /v1/auth/email-change/confirm:
+    post:
+      operationId: confirmEmailChange
+      tags: [auth]
+      summary: Confirm a new e-mail address
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/TokenRequest"}
+      responses:
+        "204": {description: E-mail address changed}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+
+  # ------------------------------------------------------------------ me
+  /v1/me:
+    get:
+      operationId: getMe
+      tags: [me]
+      summary: Own profile (accepts scope=setup)
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Profile"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+    patch:
+      operationId: updateMe
+      tags: [me]
+      summary: Change own profile data
+      description: Address fields are accepted only for the role patient. E-mail and password have their own routes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ProfileUpdate"}
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Profile"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/me/password:
+    post:
+      operationId: changePassword
+      tags: [me]
+      summary: Change own password (accepts scope=setup)
+      description: Needs the current password. Password policy SR.04. Sets `sessions_valid_after`; the response carries a new token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ChangePasswordRequest"}
+      responses:
+        "200":
+          description: New token
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TokenResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+
+  /v1/me/email:
+    post:
+      operationId: requestEmailChange
+      tags: [me]
+      summary: Request an e-mail change
+      description: Needs the current password. A confirmation link goes to the new address. The old address gets a notice.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EmailChangeRequest"}
+      responses:
+        "202": {description: Accepted}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+
+  /v1/me/mfa/setup:
+    post:
+      operationId: mfaSetupStart
+      tags: [me]
+      summary: Start TOTP setup (UF-03, UF-04; accepts scope=setup)
+      description: |
+        Returns the secret and the otpauth URI once. Only possible while MFA is not confirmed: if it is active the answer is
+        409 `mfa_active`. To replace MFA, remove it first with `mfaDisable` and log in again (decision 22).
+      responses:
+        "200":
+          description: Secret to be scanned
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MfaSetup"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "409": {$ref: "#/components/responses/Conflict"}
+
+  /v1/me/mfa/confirm:
+    post:
+      operationId: mfaSetupConfirm
+      tags: [me]
+      summary: Confirm TOTP setup (UF-03, UF-04; accepts scope=setup)
+      description: Activates MFA, returns the recovery codes once and a token with `scope=full` (unless `must_change_password` is still set).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CodeRequest"}
+      responses:
+        "200":
+          description: MFA active
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MfaConfirmed"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+
+  /v1/me/mfa/disable:
+    post:
+      operationId: mfaDisable
+      tags: [me]
+      summary: Remove MFA (UF-04)
+      description: |
+        Needs the password and a valid TOTP or recovery code. Deletes the secret and all recovery codes and revokes all
+        sessions, so the next login only yields `scope=setup` and MFA has to be set up again (decision 22). A wrong code counts
+        as a failed attempt (SR.05). An administrator cannot remove the MFA of another user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/MfaDisableRequest"}
+      responses:
+        "204": {description: "MFA removed, all sessions revoked"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+
+  /v1/me/mfa/recovery-codes:
+    post:
+      operationId: mfaRegenerateRecoveryCodes
+      tags: [me]
+      summary: Replace the recovery codes (UF-04)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CodeRequest"}
+      responses:
+        "200":
+          description: New recovery codes, shown once
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RecoveryCodes"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+
+  /v1/me/deletion:
+    post:
+      operationId: deleteOwnAccount
+      tags: [me]
+      summary: Delete the own account (UF-13)
+      description: Needs password and MFA code. Future bookings are cancelled, the account is disabled, retention D starts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/DeleteAccountRequest"}
+      responses:
+        "204": {description: Account disabled}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+
+  # ------------------------------------------------------------------ admin
+  /v1/admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [admin]
+      summary: List users (no appointment data)
+      parameters:
+        - {name: q, in: query, schema: {type: string, maxLength: 100}, description: "Name or e-mail contains"}
+        - {name: role, in: query, schema: {$ref: "#/components/schemas/Role"}}
+        - {name: status, in: query, schema: {$ref: "#/components/schemas/UserStatus"}}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: Page of users, sorted by last name, first name
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/UserPage"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      operationId: adminCreateUser
+      tags: [admin]
+      summary: Create a user (UF-10)
+      description: Creates an active account with `must_change_password` and sends a reset link. Role `systemadmin` cannot be combined with others.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AdminCreateUser"}
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location: {schema: {type: string, maxLength: 200}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminUser"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/admin/users/{userId}:
+    parameters:
+      - {$ref: "#/components/parameters/UserId"}
+    get:
+      operationId: adminGetUser
+      tags: [admin]
+      summary: Show a user
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminUser"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    delete:
+      operationId: adminDeleteUser
+      tags: [admin]
+      summary: Delete a user account (UF-13)
+      description: Same effect as deleteOwnAccount. The admin cannot delete the own account here (422).
+      responses:
+        "204": {description: Account disabled}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/admin/users/{userId}/roles:
+    parameters:
+      - {$ref: "#/components/parameters/UserId"}
+    put:
+      operationId: adminSetRoles
+      tags: [admin]
+      summary: Replace the roles of a user (UF-10)
+      description: Revokes the sessions of the user. `systemadmin` must be the only role (decision 9), otherwise 422. Creates or keeps the doctor and patient rows.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RolesUpdate"}
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminUser"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/admin/users/{userId}/password-reset:
+    parameters:
+      - {$ref: "#/components/parameters/UserId"}
+    post:
+      operationId: adminResetPassword
+      tags: [admin]
+      summary: Send a password reset link (UF-10)
+      description: The admin never sees or sets a password. Sessions of the user are revoked.
+      responses:
+        "202": {description: Accepted}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /v1/admin/users/{userId}/unlock:
+    parameters:
+      - {$ref: "#/components/parameters/UserId"}
+    post:
+      operationId: adminUnlockUser
+      tags: [admin]
+      summary: Unlock a locked account (SR.05, UF-10)
+      responses:
+        "204": {description: "Counter reset and lock removed"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /v1/admin/audit-log:
+    get:
+      operationId: adminListAuditLog
+      tags: [admin]
+      summary: Read the audit log (no appointment contents)
+      parameters:
+        - {name: from, in: query, schema: {type: string, format: date-time}}
+        - {name: to, in: query, schema: {type: string, format: date-time}}
+        - {name: action, in: query, schema: {type: string, maxLength: 100}}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: Page of entries, newest first
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AuditPage"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /v1/admin/retention:
+    get:
+      operationId: adminGetRetention
+      tags: [admin]
+      summary: Read the retention periods A to E
+      responses:
+        "200":
+          description: Periods in days
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Retention"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    put:
+      operationId: adminSetRetention
+      tags: [admin]
+      summary: Set the retention periods A to E
+      description: All five values are required. `retention_c_days` must be >= `retention_b_days`, otherwise 422.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/Retention"}
+      responses:
+        "200":
+          description: Stored periods
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Retention"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: User JWT (EdDSA, 15 min). See docs/api/internal.md.
+
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+    Offset:
+      name: offset
+      in: query
+      schema: {type: integer, minimum: 0, maximum: 1000000, default: 0}
+
+  responses:
+    BadRequest:
+      description: Malformed request or invalid/expired/used token
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Unauthorized:
+      description: No token, invalid or expired token, or scope=setup token on a full route
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    InvalidCredentials:
+      description: Neutral answer for every credential failure (code `invalid_credentials`)
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Forbidden:
+      description: Role not allowed on this route
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    NotFound:
+      description: Object does not exist or belongs to someone else
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Conflict:
+      description: Conflict with the current state
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Unprocessable:
+      description: Validation failed (SR.04 password policy, limits, enums, role rules)
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        Retry-After: {schema: {type: integer, minimum: 1, maximum: 86400}}
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: {type: string, maxLength: 200, example: "about:blank"}
+        title: {type: string, maxLength: 200, example: "Validation failed"}
+        status: {type: integer, minimum: 400, maximum: 599, example: 422}
+        code: {type: string, maxLength: 64, example: "validation_failed"}
+        detail: {type: string, maxLength: 500}
+        errors:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [field, code]
+            properties:
+              field: {type: string, maxLength: 100, example: "password"}
+              code: {type: string, maxLength: 64, example: "password_too_short"}
+
+    Role:
+      type: string
+      enum: [patient, doctor, desk, organisator, systemadmin]
+    UserStatus:
+      type: string
+      enum: [pending, active, locked, disabled]
+    Scope:
+      type: string
+      enum: [full, setup]
+    Email:
+      type: string
+      format: email
+      minLength: 3
+      maxLength: 254
+      example: patient@example.org
+    Password:
+      type: string
+      format: password
+      minLength: 15
+      maxLength: 512
+      description: SR.04. At least 15 characters, at most 512, not on the blocklist. No composition rules.
+    Code:
+      type: string
+      pattern: '^[0-9]{6}$'
+      example: "123456"
+    RecoveryCode:
+      type: string
+      pattern: '^[A-Za-z0-9-]{8,32}$'
+      example: "ab12-cd34-ef56"
+    Token:
+      type: string
+      minLength: 20
+      maxLength: 256
+      description: One-time token from an e-mail link
+    Address:
+      type: object
+      additionalProperties: false
+      properties:
+        street: {type: string, maxLength: 200, nullable: true}
+        postal_code: {type: string, maxLength: 20, nullable: true}
+        city: {type: string, maxLength: 100, nullable: true}
+
+    Jwks:
+      type: object
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          maxItems: 4
+          items:
+            type: object
+            required: [kty, crv, kid, x]
+            properties:
+              kty: {type: string, enum: [OKP]}
+              crv: {type: string, enum: [Ed25519]}
+              kid: {type: string, maxLength: 64}
+              x: {type: string, maxLength: 64}
+              use: {type: string, enum: [sig]}
+              alg: {type: string, enum: [EdDSA]}
+
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [first_name, last_name, email, password]
+      properties:
+        first_name: {type: string, minLength: 1, maxLength: 100}
+        last_name: {type: string, minLength: 1, maxLength: 100}
+        email: {$ref: "#/components/schemas/Email"}
+        phone: {type: string, maxLength: 30}
+        address: {$ref: "#/components/schemas/Address"}
+        password: {$ref: "#/components/schemas/Password"}
+    TokenRequest:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: {$ref: "#/components/schemas/Token"}
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: {$ref: "#/components/schemas/Email"}
+        password: {type: string, format: password, minLength: 1, maxLength: 512}
+    MfaChallenge:
+      type: object
+      required: [mfa_challenge, expires_in]
+      properties:
+        mfa_challenge: {type: string, minLength: 20, maxLength: 512}
+        expires_in: {type: integer, minimum: 1, maximum: 600, example: 300}
+    LoginMfaRequest:
+      type: object
+      additionalProperties: false
+      required: [mfa_challenge]
+      description: Exactly one of `code` and `recovery_code`.
+      properties:
+        mfa_challenge: {type: string, minLength: 20, maxLength: 512}
+        code: {$ref: "#/components/schemas/Code"}
+        recovery_code: {$ref: "#/components/schemas/RecoveryCode"}
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in, scope, must_change_password, mfa_enabled]
+      properties:
+        access_token: {type: string, maxLength: 2048}
+        token_type: {type: string, enum: [Bearer]}
+        expires_in: {type: integer, minimum: 1, maximum: 900, example: 900}
+        scope: {$ref: "#/components/schemas/Scope"}
+        must_change_password: {type: boolean}
+        mfa_enabled: {type: boolean}
+        roles:
+          type: array
+          maxItems: 5
+          items: {$ref: "#/components/schemas/Role"}
+    ForgotPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: {$ref: "#/components/schemas/Email"}
+    ResetPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [token, new_password]
+      properties:
+        token: {$ref: "#/components/schemas/Token"}
+        new_password: {$ref: "#/components/schemas/Password"}
+
+    Profile:
+      type: object
+      required: [id, first_name, last_name, email, roles, status, mfa_enabled, must_change_password]
+      properties:
+        id: {type: string, format: uuid}
+        first_name: {type: string, maxLength: 100}
+        last_name: {type: string, maxLength: 100}
+        email: {$ref: "#/components/schemas/Email"}
+        phone: {type: string, maxLength: 30, nullable: true}
+        address: {$ref: "#/components/schemas/Address"}
+        roles:
+          type: array
+          maxItems: 5
+          items: {$ref: "#/components/schemas/Role"}
+        status: {$ref: "#/components/schemas/UserStatus"}
+        mfa_enabled: {type: boolean}
+        must_change_password: {type: boolean}
+    ProfileUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        first_name: {type: string, minLength: 1, maxLength: 100}
+        last_name: {type: string, minLength: 1, maxLength: 100}
+        phone: {type: string, maxLength: 30, nullable: true}
+        address: {$ref: "#/components/schemas/Address"}
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password: {type: string, format: password, minLength: 1, maxLength: 512}
+        new_password: {$ref: "#/components/schemas/Password"}
+    EmailChangeRequest:
+      type: object
+      additionalProperties: false
+      required: [new_email, current_password]
+      properties:
+        new_email: {$ref: "#/components/schemas/Email"}
+        current_password: {type: string, format: password, minLength: 1, maxLength: 512}
+    MfaDisableRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      description: Exactly one of `code` and `recovery_code`.
+      properties:
+        password: {type: string, format: password, minLength: 1, maxLength: 512}
+        code: {$ref: "#/components/schemas/Code"}
+        recovery_code: {$ref: "#/components/schemas/RecoveryCode"}
+    MfaSetup:
+      type: object
+      required: [secret, otpauth_uri]
+      properties:
+        secret: {type: string, maxLength: 128, description: "Base32. Shown once."}
+        otpauth_uri: {type: string, maxLength: 512}
+    CodeRequest:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code: {$ref: "#/components/schemas/Code"}
+    RecoveryCodes:
+      type: object
+      required: [recovery_codes]
+      properties:
+        recovery_codes:
+          type: array
+          minItems: 10
+          maxItems: 10
+          items: {$ref: "#/components/schemas/RecoveryCode"}
+    MfaConfirmed:
+      type: object
+      required: [recovery_codes, token]
+      properties:
+        recovery_codes:
+          type: array
+          minItems: 10
+          maxItems: 10
+          items: {$ref: "#/components/schemas/RecoveryCode"}
+        token: {$ref: "#/components/schemas/TokenResponse"}
+    DeleteAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [password, code]
+      properties:
+        password: {type: string, format: password, minLength: 1, maxLength: 512}
+        code: {$ref: "#/components/schemas/Code"}
+
+    AdminUser:
+      type: object
+      required: [id, first_name, last_name, email, roles, status, permanently_locked, mfa_enabled, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        first_name: {type: string, maxLength: 100}
+        last_name: {type: string, maxLength: 100}
+        email: {$ref: "#/components/schemas/Email"}
+        roles:
+          type: array
+          maxItems: 5
+          items: {$ref: "#/components/schemas/Role"}
+        status: {$ref: "#/components/schemas/UserStatus"}
+        locked_until: {type: string, format: date-time, nullable: true}
+        permanently_locked: {type: boolean}
+        mfa_enabled: {type: boolean}
+        created_at: {type: string, format: date-time}
+    UserPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/AdminUser"}
+        total: {type: integer, minimum: 0, maximum: 1000000}
+    AdminCreateUser:
+      type: object
+      additionalProperties: false
+      required: [first_name, last_name, email, roles]
+      properties:
+        first_name: {type: string, minLength: 1, maxLength: 100}
+        last_name: {type: string, minLength: 1, maxLength: 100}
+        email: {$ref: "#/components/schemas/Email"}
+        phone: {type: string, maxLength: 30}
+        roles:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/Role"}
+    RolesUpdate:
+      type: object
+      additionalProperties: false
+      required: [roles]
+      properties:
+        roles:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/Role"}
+    AuditEntry:
+      type: object
+      required: [id, occurred_at, action]
+      properties:
+        id: {type: integer, format: int64, minimum: 1, maximum: 9007199254740991}
+        occurred_at: {type: string, format: date-time}
+        actor_user_id: {type: string, format: uuid, nullable: true}
+        action: {type: string, maxLength: 100}
+        data_category: {type: string, maxLength: 64, nullable: true}
+        target_user_id: {type: string, format: uuid, nullable: true}
+        affected_count: {type: integer, minimum: 0, maximum: 1000000, nullable: true}
+    AuditPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/AuditEntry"}
+        total: {type: integer, minimum: 0, maximum: 1000000}
+    Retention:
+      type: object
+      additionalProperties: false
+      required: [retention_a_days, retention_b_days, retention_c_days, retention_d_days, retention_e_days]
+      properties:
+        retention_a_days: {type: integer, minimum: 1, maximum: 3650, example: 30, description: "A: cancelled booking -> hard delete"}
+        retention_b_days: {type: integer, minimum: 1, maximum: 3650, example: 365, description: "B: completed booking -> reason/info emptied"}
+        retention_c_days: {type: integer, minimum: 1, maximum: 3650, example: 730, description: "C: completed booking -> record deleted (>= B)"}
+        retention_d_days: {type: integer, minimum: 1, maximum: 3650, example: 30, description: "D: disabled account -> final deletion"}
+        retention_e_days: {type: integer, minimum: 1, maximum: 3650, example: 90, description: "E: audit log"}

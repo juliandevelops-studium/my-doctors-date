@@ -1,0 +1,5 @@
+# Client for mail_service (callers: user_service, calendar_service).
+package: mailclient
+generate:
+  models: true
+  client: true
