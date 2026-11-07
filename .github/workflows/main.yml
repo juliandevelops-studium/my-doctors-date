@@ -144,11 +144,11 @@ jobs:
       matrix:
         include:
           # Only images whose Dockerfiles already exist in the repo are built.
-          # calendar_service (Phase 6) and frontend (Phase 7) are re-added there.
+          # calendar_service (Phase 6), user_service (Phase 5) and frontend (Phase 7) are re-added with their service.
           # - { image: calendar_service,    context: .,          file: services/calendar_service/Dockerfile }
           - { image: database_middleware, context: .,         file: services/database_middleware/Dockerfile }
           - { image: mail_service,        context: .,         file: services/mail_service/Dockerfile }
-          - { image: user_service,        context: .,          file: services/user_service/Dockerfile }
+          # - { image: user_service,        context: .,          file: services/user_service/Dockerfile }
           # - { image: frontend,            context: ./frontend, file: frontend/Dockerfile }
           - { image: migrations,          context: .,          file: deploy/migrations.Dockerfile }
     steps:
@@ -253,7 +253,7 @@ jobs:
           # - { image: calendar_service,    context: .,          file: services/calendar_service/Dockerfile }
           - { image: database_middleware, context: .,         file: services/database_middleware/Dockerfile }
           - { image: mail_service,        context: .,         file: services/mail_service/Dockerfile }
-          - { image: user_service,        context: .,          file: services/user_service/Dockerfile }
+          # - { image: user_service,        context: .,          file: services/user_service/Dockerfile }
           # - { image: frontend,            context: ./frontend, file: frontend/Dockerfile }
           - { image: migrations,          context: .,          file: deploy/migrations.Dockerfile }
     steps:
