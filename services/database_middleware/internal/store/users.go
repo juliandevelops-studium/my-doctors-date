@@ -371,7 +371,7 @@ func (s *Store) AccountDelete(ctx context.Context, id api.Uuid) (api.AccountDele
 		if err := tx.QueryRow(ctx, `SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, id).Scan(&uid); err != nil {
 			return mapErr(err)
 		}
-		tag, err := tx.Exec(ctx, `UPDATE bookings SET status = 'storniert', reason = NULL, info = NULL, updated_at = now()
+		tag, err := tx.Exec(ctx, `UPDATE bookings SET status = 'storniert', deleted_at = now(), reason = NULL, info = NULL, updated_at = now()
 			WHERE patient_id = $1 AND deleted_at IS NULL AND ends_at > now()`, id)
 		if err != nil {
 			return mapErr(err)

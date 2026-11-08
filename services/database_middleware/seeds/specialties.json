@@ -1,0 +1,7 @@
+{
+  "specialties": [
+    { "name": "Allgemeinmedizin" },
+    { "name": "Orthopädie" },
+    { "name": "Dermatologie" }
+  ]
+}

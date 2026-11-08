@@ -5,7 +5,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MIGRATIONS="$ROOT/services/database_middleware/migrations"
-NAME="sbd-migrate-test-$$"
+NAME="mdd-migrate-test-$$"
 PW="test-$RANDOM$RANDOM"
 NET="$NAME-net"
 

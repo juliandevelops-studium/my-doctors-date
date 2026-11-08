@@ -12,7 +12,7 @@ import (
 	"github.com/juliandevelops-studium/my-doctors-date/services/database_middleware/internal/api"
 )
 
-const activeDoctor = `EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = u.id AND r.role = 'arzt')
+const activeDoctor = `EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = u.id AND r.role = 'doctor')
   AND u.deleted_at IS NULL AND u.status = 'active'`
 
 // SpecialtyList returns all specialties.

@@ -96,9 +96,10 @@ func refAsNotFound(err error) error {
 }
 
 // refAsConflict maps "still referenced" to 409 (delete operations).
+// 23503 = NO ACTION at statement end, 23001 = RESTRICT (both mean: the row is still referenced).
 func refAsConflict(err error) error {
 	var pe *pgconn.PgError
-	if errors.As(err, &pe) && pe.Code == "23503" {
+	if errors.As(err, &pe) && (pe.Code == "23503" || pe.Code == "23001") {
 		return conflict("in_use", "Object is still in use")
 	}
 	return mapErr(err)

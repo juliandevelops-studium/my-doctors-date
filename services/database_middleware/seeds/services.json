@@ -1,0 +1,10 @@
+{
+  "services": [
+    { "name": "Erstuntersuchung", "duration_minutes": 30, "specialty": "Allgemeinmedizin" },
+    { "name": "Kontrolltermin", "duration_minutes": 15, "specialty": "Allgemeinmedizin" },
+    { "name": "Impfung", "duration_minutes": 15, "specialty": "Allgemeinmedizin" },
+    { "name": "Orthopädische Beratung", "duration_minutes": 30, "specialty": "Orthopädie" },
+    { "name": "Hautkrebs-Screening", "duration_minutes": 30, "specialty": "Dermatologie" },
+    { "name": "Sonstiges", "duration_minutes": 60, "specialty": null, "is_other": true }
+  ]
+}
