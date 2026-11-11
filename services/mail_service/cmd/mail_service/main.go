@@ -18,7 +18,7 @@ import (
 )
 
 func main() {
-	time.Local = time.UTC // API times are always UTC (api/CONVENTIONS.md), also on a developer machine
+	time.Local = time.UTC // API times are always UTC (docs/api/CONVENTIONS.md), also on a developer machine
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if err := run(log); err != nil {
 		log.Error("stopped", "error", err.Error())

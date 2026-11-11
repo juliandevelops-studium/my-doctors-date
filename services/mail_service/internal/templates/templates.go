@@ -35,7 +35,7 @@ var (
 	calendar = []string{"calendar_service"}
 )
 
-// Specs is the contract of api/internal.md section 5. A parameter that is not listed is rejected.
+// Specs is the contract of docs/api/internal.md section 5. A parameter that is not listed is rejected.
 var Specs = map[string]Spec{
 	"verify_email":         {Required: []string{FirstName, Link}, Callers: user},
 	"password_reset":       {Required: []string{FirstName, Link}, Callers: user},
