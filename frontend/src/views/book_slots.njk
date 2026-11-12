@@ -1,0 +1,39 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<h1>{{ service.name }}</h1>
+<p class="muted">{{ service.duration_minutes }} Minuten{% if service.specialty_name %} · {{ service.specialty_name }}{% endif %}{% if patientName %} · für {{ patientName }}{% endif %}</p>
+<nav class="pager" aria-label="Woche wählen">
+  {% if range.prev %}<a href="{{ pagerBase }}from={{ range.prev }}">← Vorige Woche</a>{% else %}<span class="off" aria-disabled="true">← Vorige Woche</span>{% endif %}
+  <span>ab {{ range.from }}</span>
+  <a href="{{ pagerBase }}from={{ range.next }}">Nächste Woche →</a>
+</nav>
+<form method="post" action="{{ action }}" class="card">
+  {{ m.csrf() }}
+  <input type="hidden" name="from" value="{{ range.from }}">
+  {% if hidden %}{% for k, v in hidden %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}{% endif %}
+  {{ m.field('reason', 'Grund des Besuchs (optional)', {value: reason, maxlength: 200}) }}
+  {{ m.field('info', 'Anmerkung (optional)', {value: info, textarea: true, rows: 3, maxlength: 2000}) }}
+  <p class="hint">Mit einem Klick auf eine Uhrzeit buchen Sie den Termin.</p>
+  {% if empty %}
+    <p class="muted">In dieser Woche sind keine Termine frei. Versuchen Sie die nächste Woche.</p>
+  {% endif %}
+  <div class="week">
+    {% for d in week %}
+    <section class="day{% if d.off %} off{% endif %}" aria-label="{{ d.weekday }}, {{ d.label }}">
+      <h3>{{ d.label }}</h3>
+      <div class="timeline">
+        {% for b in d.blocks %}
+          {% if b.type == 'free' %}
+          <button type="submit" name="{{ slotField or 'starts_at' }}" value="{{ b.starts_at }}{{ ('|' + b.doctor_id) if b.doctor_id and slotField == 'slot' else '' }}" style="flex-grow: {{ b.minutes }}" title="{{ b.starts_at | dateTime }} – {{ b.ends_at | time }}{% if doctorNames and b.doctor_id %} · {{ doctorNames[b.doctor_id] }}{% endif %}">{{ b.starts_at | time }}{% if doctorNames and b.doctor_id %}<br><small>{{ doctorNames[b.doctor_id] }}</small>{% endif %}</button>
+          {% else %}
+          <div class="busy" style="flex-grow: {{ b.minutes }}" title="{{ b.starts_at | time }} – {{ b.ends_at | time }} belegt"></div>
+          {% endif %}
+        {% endfor %}
+        {% if d.blocks.length == 0 and not d.off %}<p class="muted tiny">keine freien Zeiten</p>{% endif %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+</form>
+{% endblock %}

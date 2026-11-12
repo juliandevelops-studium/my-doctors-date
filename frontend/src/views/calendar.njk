@@ -1,0 +1,29 @@
+{% extends "layout.njk" %}
+{% block content %}
+<h1>Mein Kalender</h1>
+<nav class="pager" aria-label="Woche wählen">
+  <a href="/calendar?from={{ range.prev }}">← Vorige Woche</a>
+  <span>{{ range.from }} bis {{ range.to }}</span>
+  <a href="/calendar?from={{ range.next }}">Nächste Woche →</a>
+  <a href="/calendar?from={{ range.today }}">Heute</a>
+</nav>
+{% if days.length == 0 %}<p class="muted">In dieser Woche sind keine Termine eingetragen.</p>{% endif %}
+{% for d in days %}
+<section class="day">
+  <h2>{{ d.label }}</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Zeit</th><th>Patient:in</th><th>Leistung</th><th>Grund</th></tr></thead>
+    <tbody>
+    {% for b in d.items %}
+      <tr>
+        <td data-label="Zeit"><a href="/bookings/{{ b.id }}">{{ b.starts_at | time }} – {{ b.ends_at | time }}</a></td>
+        <td data-label="Patient:in">{% if b.patient %}{{ b.patient.first_name }} {{ b.patient.last_name }}{% endif %}</td>
+        <td data-label="Leistung">{{ b.service.name }}</td>
+        <td data-label="Grund">{{ b.reason }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endfor %}
+{% endblock %}

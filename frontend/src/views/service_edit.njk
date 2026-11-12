@@ -1,0 +1,20 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<p><a href="/practice">← Zurück</a></p>
+<h1>Leistung bearbeiten</h1>
+<form method="post" action="/practice/services/{{ service.id }}" class="card narrow">
+  {{ m.csrf() }}
+  {{ m.field('name', 'Name', {value: service.name, required: true, maxlength: 100, errors: errors}) }}
+  {{ m.field('duration_minutes', 'Dauer in Minuten', {type: 'number', value: service.duration_minutes, required: true, min: 5, max: 480, errors: errors}) }}
+  {% if service.is_other %}
+    <p class="hint">„Sonstiges“ hat keine Fachrichtung; die Praxis ordnet die Ärztin oder den Arzt zu.</p>
+  {% else %}
+  <div class="field"><label for="f-specialty_id">Fachrichtung</label>
+    <select id="f-specialty_id" name="specialty_id" required>
+      {% for s in specialties %}<option value="{{ s.id }}"{% if s.id == service.specialty_id %} selected{% endif %}>{{ s.name }}</option>{% endfor %}
+    </select></div>
+  {% endif %}
+  <button type="submit">Speichern</button>
+</form>
+{% endblock %}

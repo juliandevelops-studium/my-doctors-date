@@ -1,0 +1,8 @@
+{% extends "layout.njk" %}
+{% block content %}
+<h1>Arbeitszeiten gespeichert</h1>
+{% if outside > 0 %}
+  <p class="alert" role="alert">{{ outside }} bereits gebuchte Termine liegen nun außerhalb der Arbeitszeit. Sie bleiben bestehen und sollten umgeplant werden (Termine › Verschieben).</p>
+{% else %}<p class="notice">Alle bestehenden Termine liegen innerhalb der Arbeitszeit.</p>{% endif %}
+<p><a class="button" href="/practice">Zurück zur Praxis</a> <a class="button secondary" href="/staff/bookings">Zu den Terminen</a></p>
+{% endblock %}

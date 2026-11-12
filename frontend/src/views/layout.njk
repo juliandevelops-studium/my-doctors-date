@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#0f766e">
+  <title>{{ title }} · {{ practiceName }}</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="{% if not me %}anon{% endif %}">
+{% macro icon(name) %}
+<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+{%- if name == 'plus' %}<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/>
+{%- elif name == 'list' %}<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>
+{%- elif name == 'calendar' %}<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/>
+{%- elif name == 'users' %}<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 5a3 3 0 0 1 0 6M18 14.5c1.8.8 3 2.6 3 5.5"/>
+{%- elif name == 'practice' %}<path d="M4 20V9l8-5 8 5v11zM12 10v6M9 13h6"/>
+{%- elif name == 'shield' %}<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>
+{%- elif name == 'clock' %}<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>
+{%- elif name == 'login' %}<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 8l-4 4 4 4M6 12h10"/>
+{%- else %}<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/>
+{%- endif -%}
+</svg>
+{% endmacro %}
+{% set tabs = [] %}
+{% if me and scope == 'full' %}
+  {% if 'patient' in roles %}
+    {% set _ = tabs.push({href: '/book', label: 'Buchen', on: path.startsWith('/book')}) %}
+    {% set _ = tabs.push({href: '/appointments', label: 'Termine', on: path.startsWith('/appointments')}) %}
+  {% endif %}
+  {% if 'doctor' in roles %}
+    {% set _ = tabs.push({href: '/calendar', label: 'Kalender', on: path.startsWith('/calendar')}) %}
+  {% endif %}
+  {% if 'desk' in roles or 'organisator' in roles %}
+    {% set _ = tabs.push({href: '/staff/bookings', label: 'Terminverwaltung', on: path.startsWith('/staff/bookings')}) %}
+    {% set _ = tabs.push({href: '/staff/patients', label: 'Patient:innen', on: path.startsWith('/staff/patients')}) %}
+  {% endif %}
+  {% if 'organisator' in roles %}
+    {% set _ = tabs.push({href: '/practice', label: 'Praxis', on: path.startsWith('/practice')}) %}
+  {% endif %}
+  {% if 'systemadmin' in roles %}
+    {% set _ = tabs.push({href: '/admin/users', label: 'Benutzer', on: path.startsWith('/admin/users')}) %}
+    {% set _ = tabs.push({href: '/admin/audit', label: 'Protokoll', on: path.startsWith('/admin/audit')}) %}
+    {% set _ = tabs.push({href: '/admin/retention', label: 'Fristen', on: path.startsWith('/admin/retention')}) %}
+  {% endif %}
+  {% set _ = tabs.push({href: '/account', label: 'Konto', on: path.startsWith('/account')}) %}
+{% elif me %}
+  {% set tabs = [{href: '/setup', label: 'Einrichtung', on: true}] %}
+{% endif %}
+<a class="skip" href="#main">Zum Inhalt springen</a>
+<header class="site">
+  <div class="bar">
+    <a class="brand" href="/"><span>{{ practiceName }}</span></a>
+    {% if me %}
+    <nav class="topnav" aria-label="Hauptnavigation">
+      {% for t in tabs %}
+        {% if t.href != '/account' %}
+          {% if t.href == '/book' %}
+            <a class="button cta" href="{{ t.href }}" {% if t.on %}aria-current="page"{% endif %}>{{ t.label }}</a>
+          {% else %}
+            <a href="{{ t.href }}" {% if t.on %}aria-current="page"{% endif %}>{{ t.label }}</a>
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+    </nav>
+    <details class="account">
+      <summary class="avatar" aria-label="Konto von {{ me.first_name }}">{{ icon('user') }}</summary>
+      <div class="menu">
+        <p class="who">{{ me.first_name }} {{ me.last_name }}</p>
+        <p class="menu-link"><a href="/account">Konto</a></p>
+        <form class="logout" method="post" action="/logout">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <button type="submit" class="link">Abmelden</button>
+        </form>
+      </div>
+    </details>
+    {% endif %}
+  </div>
+</header>
+<main id="main">
+  {% if flash %}<p class="notice" role="status">{{ flash }}</p>{% endif %}
+  {% if error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

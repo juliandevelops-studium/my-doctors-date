@@ -1,0 +1,24 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<h1>Protokoll</h1>
+<p class="muted">Verwaltungsaktionen und Löschläufe. Das Protokoll enthält keine Termininhalte.</p>
+<form method="get" action="/admin/audit" class="filters">
+  {{ m.field('action', 'Aktion', {value: action, maxlength: 100}) }}
+  <button type="submit" class="secondary">Filtern</button>
+</form>
+{% if items.length == 0 %}<p class="muted">Keine Einträge.</p>{% else %}
+<div class="table-wrap"><table>
+  <thead><tr><th>Zeit</th><th>Aktion</th><th>Ausgeführt von</th><th>Betrifft</th><th>Kategorie</th><th>Anzahl</th></tr></thead>
+  <tbody>
+  {% for e in items %}
+    <tr><td data-label="Zeit">{{ e.occurred_at | dateTime }}</td><td data-label="Aktion">{{ e.action }}</td>
+      <td data-label="Ausgeführt von">{% if e.actor_user_id %}<a href="/admin/users/{{ e.actor_user_id }}">{{ e.actor_user_id | truncate(8, true, '') }}</a>{% else %}System{% endif %}</td>
+      <td data-label="Betrifft">{% if e.target_user_id %}<a href="/admin/users/{{ e.target_user_id }}">{{ e.target_user_id | truncate(8, true, '') }}</a>{% endif %}</td>
+      <td data-label="Kategorie">{{ e.data_category or '' }}</td><td data-label="Anzahl">{{ e.affected_count if e.affected_count is not none else '' }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{{ m.pager(pagerBase, total, limit, offset) }}
+{% endif %}
+{% endblock %}

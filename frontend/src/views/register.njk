@@ -1,0 +1,26 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<h1>Konto anlegen</h1>
+<form method="post" action="/register" class="card">
+  {{ m.csrf() }}
+  <div class="grid2">
+    {{ m.field('first_name', 'Vorname', {value: v.first_name, required: true, autocomplete: 'given-name', maxlength: 100, errors: errors}) }}
+    {{ m.field('last_name', 'Nachname', {value: v.last_name, required: true, autocomplete: 'family-name', maxlength: 100, errors: errors}) }}
+  </div>
+  {{ m.field('email', 'E-Mail-Adresse', {type: 'email', value: v.email, required: true, autocomplete: 'email', maxlength: 254, errors: errors}) }}
+  {{ m.field('phone', 'Telefonnummer', {type: 'tel', value: v.phone, autocomplete: 'tel', maxlength: 30, errors: errors}) }}
+  <fieldset>
+    <legend>Adresse</legend>
+    {{ m.field('street', 'Straße und Hausnummer', {value: v.street, autocomplete: 'street-address', maxlength: 200, errors: errors}) }}
+    <div class="grid2">
+      {{ m.field('postal_code', 'PLZ', {value: v.postal_code, autocomplete: 'postal-code', maxlength: 20, errors: errors}) }}
+      {{ m.field('city', 'Ort', {value: v.city, autocomplete: 'address-level2', maxlength: 100, errors: errors}) }}
+    </div>
+  </fieldset>
+  {{ m.field('password', 'Passwort', {type: 'password', required: true, autocomplete: 'new-password', minlength: 15, maxlength: 512, errors: errors, hint: 'Mindestens 15 Zeichen, keine Sonderzeichen nötig. Ein Satz aus mehreren Wörtern ist gut. Häufig verwendete Passwörter werden abgelehnt.'}) }}
+  {{ m.field('password2', 'Passwort wiederholen', {type: 'password', required: true, autocomplete: 'new-password', maxlength: 512, errors: errors}) }}
+  <button type="submit">Konto anlegen</button>
+</form>
+<p>Schon ein Konto? <a href="/login">Anmelden</a></p>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "layout.njk" %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p class="notice">Die Zwei-Faktor-Anmeldung ist aktiv.</p>
+<p>Bewahren Sie diese Codes sicher auf, zum Beispiel in einem Passwortmanager. Mit einem Code kommen Sie ohne Smartphone in Ihr Konto. <strong>Jeder Code funktioniert nur einmal, und diese Liste wird nur jetzt angezeigt.</strong></p>
+<ul class="codes">
+  {% for c in codes %}<li>{{ c }}</li>{% endfor %}
+</ul>
+<p><a class="button" href="{{ next }}">Ich habe die Codes gespeichert</a></p>
+{% endblock %}

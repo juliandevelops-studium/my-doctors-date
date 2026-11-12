@@ -1,0 +1,16 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<section class="auth">
+  <h1>Anmelden</h1>
+  <form method="post" action="/login" class="card">
+    {{ m.csrf() }}
+    <input type="hidden" name="next" value="{{ next }}">
+    {{ m.field('email', 'E-Mail-Adresse', {type: 'email', value: email, required: true, autocomplete: 'username', autofocus: true, maxlength: 254}) }}
+    {{ m.field('password', 'Passwort', {type: 'password', required: true, autocomplete: 'current-password', maxlength: 512}) }}
+    <button type="submit">Weiter</button>
+    <p class="alt"><a href="/forgot-password">Passwort vergessen?</a></p>
+  </form>
+  <p class="alt">Noch kein Konto? <a href="/register">Hier eines erstellen</a></p>
+</section>
+{% endblock %}

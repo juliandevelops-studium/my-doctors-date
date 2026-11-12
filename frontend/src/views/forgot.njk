@@ -1,0 +1,11 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<h1>Passwort vergessen</h1>
+<p>Geben Sie Ihre E-Mail-Adresse ein. Wenn ein Konto existiert, schicken wir Ihnen einen Link zum Zurücksetzen.</p>
+<form method="post" action="/forgot-password" class="card narrow">
+  {{ m.csrf() }}
+  {{ m.field('email', 'E-Mail-Adresse', {type: 'email', required: true, autocomplete: 'email', autofocus: true, maxlength: 254, errors: errors}) }}
+  <button type="submit">Link anfordern</button>
+</form>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<h1>Neues Passwort festlegen</h1>
+<form method="post" action="/reset-password" class="card narrow">
+  {{ m.csrf() }}
+  <input type="hidden" name="token" value="{{ token }}">
+  {{ m.field('new_password', 'Neues Passwort', {type: 'password', required: true, autocomplete: 'new-password', minlength: 15, maxlength: 512, autofocus: true, errors: errors, hint: 'Mindestens 15 Zeichen. Die Zwei-Faktor-Anmeldung bleibt aktiv.'}) }}
+  {{ m.field('password2', 'Passwort wiederholen', {type: 'password', required: true, autocomplete: 'new-password', maxlength: 512, errors: errors}) }}
+  <button type="submit">Passwort speichern</button>
+</form>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<h1>Mein Konto</h1>
+<p class="muted">{{ me.email }} · {% for r in me.roles %}<span class="badge">{{ roleLabels[r] }}</span> {% endfor %}</p>
+
+<section class="card" aria-labelledby="h-profile">
+  <h2 id="h-profile">Meine Daten</h2>
+  {% if section == 'profile' and error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="/account">
+    {{ m.csrf() }}
+    <div class="grid2">
+      {{ m.field('first_name', 'Vorname', {value: me.first_name, required: true, maxlength: 100, errors: errors}) }}
+      {{ m.field('last_name', 'Nachname', {value: me.last_name, required: true, maxlength: 100, errors: errors}) }}
+    </div>
+    {{ m.field('phone', 'Telefonnummer', {type: 'tel', value: me.phone, maxlength: 30, errors: errors}) }}
+    {% if isPatient %}
+    <fieldset><legend>Adresse</legend>
+      {{ m.field('street', 'Straße und Hausnummer', {value: me.address.street if me.address, maxlength: 200, errors: errors}) }}
+      <div class="grid2">
+        {{ m.field('postal_code', 'PLZ', {value: me.address.postal_code if me.address, maxlength: 20, errors: errors}) }}
+        {{ m.field('city', 'Ort', {value: me.address.city if me.address, maxlength: 100, errors: errors}) }}
+      </div>
+    </fieldset>
+    {% endif %}
+    <button type="submit">Speichern</button>
+  </form>
+</section>
+
+<section class="card" aria-labelledby="h-email">
+  <h2 id="h-email">E-Mail-Adresse ändern</h2>
+  {% if section == 'email' and error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="/account/email">
+    {{ m.csrf() }}
+    {{ m.field('new_email', 'Neue E-Mail-Adresse', {type: 'email', required: true, maxlength: 254, errors: errors}) }}
+    {{ m.field('current_password', 'Aktuelles Passwort', {type: 'password', required: true, autocomplete: 'current-password', maxlength: 512, errors: errors}) }}
+    <button type="submit">Bestätigungslink anfordern</button>
+  </form>
+</section>
+
+<section class="card" aria-labelledby="h-pw">
+  <h2 id="h-pw">Passwort ändern</h2>
+  {% if section == 'password' and error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="/account/password">
+    {{ m.csrf() }}
+    {{ m.field('current_password', 'Aktuelles Passwort', {type: 'password', required: true, autocomplete: 'current-password', maxlength: 512, errors: errors}) }}
+    {{ m.field('new_password', 'Neues Passwort', {type: 'password', required: true, autocomplete: 'new-password', minlength: 15, maxlength: 512, errors: errors, hint: 'Mindestens 15 Zeichen.'}) }}
+    {{ m.field('password2', 'Neues Passwort wiederholen', {type: 'password', required: true, autocomplete: 'new-password', maxlength: 512, errors: errors}) }}
+    <button type="submit">Passwort ändern</button>
+  </form>
+</section>
+
+<section class="card" aria-labelledby="h-mfa">
+  <h2 id="h-mfa">Zwei-Faktor-Anmeldung</h2>
+  <p>Aktiv. Neue Recovery-Codes machen die alten ungültig.</p>
+  {% if section == 'mfa' and error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="/account/mfa/recovery-codes" class="narrow">
+    {{ m.csrf() }}
+    {{ m.field('code', 'Code aus der App', {required: true, inputmode: 'numeric', pattern: '[0-9]{6}', maxlength: 6, autocomplete: 'one-time-code'}) }}
+    <button type="submit" class="secondary">Neue Recovery-Codes erzeugen</button>
+  </form>
+  <h3>Zwei-Faktor-Anmeldung entfernen</h3>
+  <p>Zum Ersetzen (zum Beispiel bei neuem Smartphone) entfernen Sie sie zuerst. Danach melden Sie sich neu an und richten sie neu ein. Alle Sitzungen enden.</p>
+  {% if section == 'mfa-disable' and error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="/account/mfa/disable" class="narrow">
+    {{ m.csrf() }}
+    <input type="hidden" name="mode" value="code">
+    {{ m.field('password', 'Passwort', {type: 'password', required: true, autocomplete: 'current-password', maxlength: 512}) }}
+    {{ m.field('code', 'Code aus der App', {required: true, inputmode: 'numeric', pattern: '[0-9]{6}', maxlength: 6, autocomplete: 'one-time-code', hint: 'Ohne Smartphone: Recovery-Code unten verwenden.'}) }}
+    <button type="submit" class="danger">Entfernen</button>
+  </form>
+  <form method="post" action="/account/mfa/disable" class="narrow">
+    {{ m.csrf() }}
+    <input type="hidden" name="mode" value="recovery">
+    {{ m.field('password', 'Passwort', {type: 'password', required: true, autocomplete: 'current-password', maxlength: 512}) }}
+    {{ m.field('recovery_code', 'Recovery-Code', {required: true, maxlength: 32}) }}
+    <button type="submit" class="danger">Mit Recovery-Code entfernen</button>
+  </form>
+</section>
+
+<section class="card danger-zone" aria-labelledby="h-del">
+  <h2 id="h-del">Konto löschen</h2>
+  <p>Zukünftige Termine werden storniert, das Konto wird deaktiviert und Ihre Daten werden nach den Aufbewahrungsfristen endgültig gelöscht.</p>
+  {% if section == 'delete' and error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="/account/delete" class="narrow">
+    {{ m.csrf() }}
+    {{ m.field('password', 'Passwort', {type: 'password', required: true, autocomplete: 'current-password', maxlength: 512}) }}
+    {{ m.field('code', 'Code aus der App', {required: true, inputmode: 'numeric', pattern: '[0-9]{6}', maxlength: 6, autocomplete: 'one-time-code'}) }}
+    <div class="field"><label><input type="checkbox" name="confirm" value="yes" required> Ja, ich möchte das Konto endgültig löschen.</label></div>
+    <button type="submit" class="danger">Konto löschen</button>
+  </form>
+</section>
+{% endblock %}

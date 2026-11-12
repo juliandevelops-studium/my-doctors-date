@@ -1,0 +1,37 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<h1>Meine Termine</h1>
+<section class="page-cta">
+  <a class="button cta" href="/book">Neuen Termin buchen</a>
+</section>
+
+<h2>Kommende Termine</h2>
+{% if upcoming.length == 0 %}<p class="muted">Keine kommenden Termine.</p>{% else %}
+<div class="rows">
+  {% for b in upcoming %}
+  <div class="row">
+    <a class="when" href="/bookings/{{ b.id }}">{{ b.starts_at | dateTime }}</a>
+    <span class="svc">{{ b.service.name }}</span>
+    <span class="doc">{% if b.doctor %}{{ b.doctor.first_name }} {{ b.doctor.last_name }}{% else %}<span class="muted">wird zugeordnet</span>{% endif %}</span>
+    <span class="badge ok">{{ statusLabels[b.status] }}</span>
+    <form class="row-action" method="post" action="/appointments/{{ b.id }}/cancel">{{ m.csrf() }}<button type="submit" class="danger">Stornieren</button></form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<h2>Vergangene Termine</h2>
+{% if past.length == 0 %}<p class="muted">Keine vergangenen Termine.</p>{% else %}
+<div class="rows">
+  {% for b in past %}
+  <div class="row">
+    <a class="when" href="/bookings/{{ b.id }}">{{ b.starts_at | dateTime }}</a>
+    <span class="svc">{{ b.service.name }}</span>
+    <span class="doc">{% if b.doctor %}{{ b.doctor.first_name }} {{ b.doctor.last_name }}{% endif %}</span>
+    <span class="badge">{{ statusLabels[b.status] }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

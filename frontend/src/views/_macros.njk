@@ -1,0 +1,48 @@
+{# Use with: {% import "_macros.njk" as m with context %} #}
+{% macro csrf() %}<input type="hidden" name="_csrf" value="{{ csrfToken }}">{% endmacro %}
+
+{# opts: type, value, required, autocomplete, hint, errors (object of lists), textarea, maxlength, min, max, step, pattern, inputmode #}
+{% macro field(name, label, opts={}) %}
+  {% set errs = (opts.errors or {})[name] %}
+  <div class="field{% if errs %} has-error{% endif %}">
+    <label for="f-{{ name }}">{{ label }}{% if opts.required %} <span class="req" aria-hidden="true">*</span>{% endif %}</label>
+    {% if opts.textarea %}
+      <textarea id="f-{{ name }}" name="{{ name }}" rows="{{ opts.rows or 4 }}"{% if opts.maxlength %} maxlength="{{ opts.maxlength }}"{% endif %}{% if opts.required %} required{% endif %}{% if errs %} aria-invalid="true"{% endif %}>{{ opts.value or '' }}</textarea>
+    {% else %}
+      <input id="f-{{ name }}" name="{{ name }}" type="{{ opts.type or 'text' }}"
+        {%- if opts.type != 'password' and opts.value is not none %} value="{{ opts.value or '' }}"{% endif %}
+        {%- if opts.required %} required{% endif %}
+        {%- if opts.autocomplete %} autocomplete="{{ opts.autocomplete }}"{% endif %}
+        {%- if opts.maxlength %} maxlength="{{ opts.maxlength }}"{% endif %}
+        {%- if opts.minlength %} minlength="{{ opts.minlength }}"{% endif %}
+        {%- if opts.min %} min="{{ opts.min }}"{% endif %}
+        {%- if opts.max %} max="{{ opts.max }}"{% endif %}
+        {%- if opts.pattern %} pattern="{{ opts.pattern }}"{% endif %}
+        {%- if opts.inputmode %} inputmode="{{ opts.inputmode }}"{% endif %}
+        {%- if opts.autofocus %} autofocus{% endif %}
+        {%- if errs %} aria-invalid="true"{% endif %}>
+    {% endif %}
+    {% if opts.hint %}<p class="hint">{{ opts.hint }}</p>{% endif %}
+    {% for e in errs %}<p class="field-error">{{ e }}</p>{% endfor %}
+  </div>
+{% endmacro %}
+
+{% macro select(name, label, options, selected='', opts={}) %}
+  <div class="field">
+    <label for="f-{{ name }}">{{ label }}</label>
+    <select id="f-{{ name }}" name="{{ name }}"{% if opts.required %} required{% endif %}>
+      {% if opts.empty %}<option value="">{{ opts.empty }}</option>{% endif %}
+      {% for o in options %}<option value="{{ o.value }}"{% if o.value == selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+    </select>
+  </div>
+{% endmacro %}
+
+{% macro pager(base, total, limit, offset) %}
+  {% if total > limit %}
+  <nav class="pager" aria-label="Seiten">
+    {% if offset > 0 %}<a href="{{ base }}offset={{ [offset - limit, 0] | max }}">← Zurück</a>{% endif %}
+    <span>{{ offset + 1 }}–{{ [offset + limit, total] | min }} von {{ total }}</span>
+    {% if offset + limit < total %}<a href="{{ base }}offset={{ offset + limit }}">Weiter →</a>{% endif %}
+  </nav>
+  {% endif %}
+{% endmacro %}

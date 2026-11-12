@@ -1,0 +1,40 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<h1>Patient:innen</h1>
+<form method="get" action="/staff/patients" class="inline-form">
+  {{ m.field('q', 'Name oder E-Mail', {value: q, maxlength: 100}) }}
+  <button type="submit">Suchen</button>
+</form>
+{% if error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+{% if items.length == 0 %}<p class="muted">{% if q %}Keine Treffer.{% else %}Keine Patient:innen.{% endif %}</p>{% else %}
+<div class="rows patients">
+  {% for p in items %}
+  <div class="row">
+    <span class="svc">{{ p.first_name }} {{ p.last_name }}</span>
+    <span class="doc">{{ p.email }}{% if p.phone %}<br>{{ p.phone }}{% endif %}</span>
+    <span class="doc">
+      {% if edit == p.id %}
+      <details class="dropdown">
+        <summary class="select">{{ doctorNames[p.main_doctor_id] or 'Hauptarzt wählen' }}</summary>
+        <form method="post" action="/staff/patients/{{ p.id }}/main-doctor" class="menu">
+          {{ m.csrf() }}
+          <input type="hidden" name="q" value="{{ q }}">
+          <button type="submit" name="doctor_id" value="">keiner</button>
+          {% for d in doctors %}<button type="submit" name="doctor_id" value="{{ d.id }}">{{ d.first_name }} {{ d.last_name }}</button>{% endfor %}
+        </form>
+      </details>
+      {% else %}
+      {{ doctorNames[p.main_doctor_id] or '–' }}
+      {% endif %}
+    </span>
+    <span class="row-action">
+      {% if edit != p.id %}<a class="button secondary" href="/staff/patients?q={{ q | urlencode }}&amp;edit={{ p.id }}#p-{{ p.id }}">Bearbeiten</a>{% endif %}
+      <a class="button" href="/staff/bookings?view=all&amp;patient_id={{ p.id }}&amp;name={{ (p.first_name + ' ' + p.last_name) | urlencode }}">Terminverwaltung</a>
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{{ m.pager(pagerBase, total, limit, offset) }}
+{% endif %}
+{% endblock %}

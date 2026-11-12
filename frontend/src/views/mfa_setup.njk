@@ -1,0 +1,19 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<h1>Zwei-Faktor-Anmeldung einrichten</h1>
+<ol>
+  <li>Scannen Sie den QR-Code mit Ihrer Authenticator-App. Alternativ geben Sie den Schlüssel von Hand ein.</li>
+  <li>Geben Sie unten den sechsstelligen Code ein, den die App anzeigt.</li>
+</ol>
+<div class="card">
+  <p class="qr" role="img" aria-label="QR-Code für die Authenticator-App">{{ qr | safe }}</p>
+  <p>Schlüssel: <span class="secret">{{ secret }}</span></p>
+  <form method="post" action="{{ action }}" class="narrow">
+    {{ m.csrf() }}
+    <input type="hidden" name="secret" value="{{ secret }}">
+    {{ m.field('code', 'Code aus der App', {required: true, autocomplete: 'one-time-code', inputmode: 'numeric', pattern: '[0-9]{6}', maxlength: 6, autofocus: true}) }}
+    <button type="submit">Bestätigen</button>
+  </form>
+</div>
+{% endblock %}

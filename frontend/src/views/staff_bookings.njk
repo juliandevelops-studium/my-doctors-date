@@ -1,0 +1,42 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<h1>Termine</h1>
+{% if patientId %}
+<section class="page-cta">
+  <a class="button cta" href="/staff/book/{{ patientId }}?name={{ (patientName or '') | urlencode }}">Neuen Termin für {{ patientName or 'diese Patient:in' }} buchen</a>
+</section>
+<p class="muted">Gefiltert nach Patient:in. <a href="/staff/bookings?view={{ view }}">Filter entfernen</a></p>
+{% endif %}
+<section class="filterbar">
+  <span class="filterlabel">Filter:</span>
+  <nav class="pills" aria-label="Ansicht">
+    {% for v in views %}
+    <a class="pill{% if view == v.id %} on{% endif %}" href="/staff/bookings?view={{ v.id }}{% if doctorId %}&amp;doctor_id={{ doctorId }}{% endif %}{% if patientId %}&amp;patient_id={{ patientId }}{% if patientName %}&amp;name={{ patientName | urlencode }}{% endif %}{% endif %}" {% if view == v.id %}aria-current="page"{% endif %}>{{ v.label }}</a>
+    {% endfor %}
+  </nav>
+  <form method="get" action="/staff/bookings" class="inline-form">
+    <input type="hidden" name="view" value="{{ view }}">
+    {% if patientId %}<input type="hidden" name="patient_id" value="{{ patientId }}">{% if patientName %}<input type="hidden" name="name" value="{{ patientName }}">{% endif %}{% endif %}
+    <div class="field"><label for="f-doctor_id">Ärztin / Arzt</label>
+      <select id="f-doctor_id" name="doctor_id"><option value="">alle</option>
+        {% for d in doctors %}<option value="{{ d.id }}"{% if d.id == doctorId %} selected{% endif %}>{{ d.first_name }} {{ d.last_name }}</option>{% endfor %}
+      </select></div>
+    <button type="submit" class="secondary">Filtern</button>
+  </form>
+</section>
+{% if items.length == 0 %}<p class="muted">Keine Termine.</p>{% else %}
+<div class="rows bookings">
+  {% for b in items %}
+  <div class="row">
+    <a class="when" href="/bookings/{{ b.id }}">{{ b.starts_at | dateTime }}</a>
+    <span class="svc">{% if b.patient %}<a href="/staff/bookings?view={{ view }}&amp;patient_id={{ b.patient.id }}">{{ b.patient.first_name }} {{ b.patient.last_name }}</a>{% if b.patient.phone %}<br><small class="muted">{{ b.patient.phone }}</small>{% endif %}{% endif %}</span>
+    <span class="doc">{{ b.service.name }}</span>
+    <span>{% if b.doctor %}{{ b.doctor.first_name }} {{ b.doctor.last_name }}{% else %}<span class="badge warn">Zuordnung offen</span>{% endif %}</span>
+    <span class="badge">{{ statusLabels[b.status] }}</span>
+  </div>
+  {% endfor %}
+</div>
+{{ m.pager(pagerBase, total, limit, offset) }}
+{% endif %}
+{% endblock %}

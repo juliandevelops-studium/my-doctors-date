@@ -1,0 +1,49 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<p><a href="/admin/users">← Alle Benutzer</a></p>
+<h1>{{ u.first_name }} {{ u.last_name }}</h1>
+<div class="card">
+  <dl>
+    <dt>E-Mail</dt><dd>{{ u.email }}</dd>
+    <dt>Status</dt><dd><span class="badge">{{ statusLabels[u.status] }}</span>{% if u.permanently_locked %} <span class="badge bad">dauerhaft gesperrt</span>{% elif u.locked_until %} <span class="badge warn">gesperrt bis {{ u.locked_until | dateTime }}</span>{% endif %}</dd>
+    <dt>Zwei-Faktor</dt><dd>{{ 'aktiv' if u.mfa_enabled else 'nicht eingerichtet' }}</dd>
+    <dt>Angelegt</dt><dd>{{ u.created_at | dateTime }}</dd>
+  </dl>
+</div>
+
+<section class="card" aria-labelledby="h-roles">
+  <h2 id="h-roles">Rollen</h2>
+  {% if isSelf %}<p class="muted">Ihre eigenen Rollen können Sie nicht ändern.</p>{% endif %}
+  <form method="post" action="/admin/users/{{ u.id }}/roles">
+    {{ m.csrf() }}
+    <fieldset{% if isSelf %} disabled{% endif %}><legend>Rollen</legend>
+      {% for r in roles %}<label><input type="checkbox" name="roles" value="{{ r }}"{% if r in u.roles %} checked{% endif %}> {{ roleLabels[r] }}</label>{% endfor %}
+    </fieldset>
+    <p class="hint">Eine Rollenänderung beendet die Sitzungen der Person. „Systemadministration“ kann nicht mit anderen Rollen kombiniert werden.</p>
+    {% if not isSelf %}<button type="submit">Rollen speichern</button>{% endif %}
+  </form>
+</section>
+
+<section class="card" aria-labelledby="h-act">
+  <h2 id="h-act">Konto</h2>
+  <div class="actions">
+    <form method="post" action="/admin/users/{{ u.id }}/password-reset">{{ m.csrf() }}<button type="submit" class="secondary">Link zum Zurücksetzen des Passworts senden</button></form>
+    {% if u.status == 'locked' or u.permanently_locked or u.locked_until %}
+    <form method="post" action="/admin/users/{{ u.id }}/unlock">{{ m.csrf() }}<button type="submit">Konto freischalten</button></form>
+    {% endif %}
+  </div>
+</section>
+
+{% if not isSelf %}
+<section class="card danger-zone" aria-labelledby="h-del">
+  <h2 id="h-del">Konto löschen</h2>
+  <p>Zukünftige Termine der Person werden storniert, das Konto wird deaktiviert, die Daten werden nach den Aufbewahrungsfristen gelöscht.</p>
+  <form method="post" action="/admin/users/{{ u.id }}/delete">
+    {{ m.csrf() }}
+    <div class="field"><label><input type="checkbox" name="confirm" value="yes" required> Ja, das Konto löschen.</label></div>
+    <button type="submit" class="danger">Löschen</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

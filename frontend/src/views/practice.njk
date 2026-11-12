@@ -1,0 +1,88 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<h1>Praxis einrichten</h1>
+
+<section class="card box" aria-labelledby="h-sp">
+  <h2 id="h-sp">Fachrichtungen</h2>
+  {% if section == 'specialty' and error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+  <ul class="plain list">
+  {% for s in specialties %}
+    <li class="list-row">
+      <span>{{ s.name }}</span>
+      <details class="confirm">
+        <summary class="x" aria-label="Fachrichtung {{ s.name }} löschen">×</summary>
+        <div class="menu">
+          <p>„{{ s.name }}“ wirklich löschen?</p>
+          <form method="post" action="/practice/specialties/{{ s.id }}/delete">{{ m.csrf() }}<button type="submit" class="danger">Löschen</button></form>
+        </div>
+      </details>
+    </li>
+  {% endfor %}
+  </ul>
+  <form method="post" action="/practice/specialties" class="inline-form">
+    {{ m.csrf() }}
+    {{ m.field('name', 'Neue Fachrichtung', {required: true, maxlength: 100, errors: errors}) }}
+    <button type="submit">Anlegen</button>
+  </form>
+</section>
+
+<section class="card box" aria-labelledby="h-sv">
+  <h2 id="h-sv">Leistungsangebot</h2>
+  {% if section == 'service' and error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+  <div class="rows services">
+    {% for s in services %}
+    <div class="row">
+      <span class="svc">{{ s.name }}{% if s.is_other %} <span class="badge">ohne Fachrichtung, Ärztin/Arzt wird zugeordnet</span>{% endif %}</span>
+      <span class="muted">{{ s.duration_minutes }} min</span>
+      <span class="doc">{{ s.specialty_name or '–' }}</span>
+      <span class="row-action">
+        <a class="button secondary" href="/practice/services/{{ s.id }}">Bearbeiten</a>
+        {% if not s.is_other %}<form method="post" action="/practice/services/{{ s.id }}/delete">{{ m.csrf() }}<button type="submit" class="danger">Löschen</button></form>{% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  <h3>Neue Leistung</h3>
+  <form method="post" action="/practice/services" class="grid2">
+    {{ m.csrf() }}
+    {{ m.field('name', 'Name', {value: v.name if v, required: true, maxlength: 100, errors: errors}) }}
+    {{ m.field('duration_minutes', 'Dauer in Minuten', {type: 'number', value: v.duration_minutes if v else 30, required: true, min: 5, max: 480, errors: errors}) }}
+    <div class="field"><label for="f-specialty_id">Fachrichtung</label>
+      <select id="f-specialty_id" name="specialty_id" required>
+        <option value="">Bitte wählen</option>
+        {% for s in specialties %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+      </select></div>
+    <div class="field submit"><button type="submit">Anlegen</button></div>
+  </form>
+</section>
+
+<section class="card box" aria-labelledby="h-doc">
+  <h2 id="h-doc">Ärztinnen und Ärzte</h2>
+  <p class="muted">Ärztinnen und Ärzte legt die Systemadministration als Benutzer mit der Rolle „Ärztin/Arzt“ an. Hier pflegen Sie ihre Fachrichtungen und Arbeitszeiten.</p>
+  {% if doctors.length == 0 %}<p class="muted">Noch keine Ärztinnen oder Ärzte.</p>{% else %}
+  <div class="rows doctors">
+    {% for d in doctors %}
+    <div class="row">
+      <span class="svc">{{ d.first_name }} {{ d.last_name }}</span>
+      <span class="doc">{% for sp in d.specialties %}{{ sp.name }}{% if not loop.last %}, {% endif %}{% else %}keine Fachrichtung{% endfor %}</span>
+      <span class="muted hours">{{ hours[d.id] or '–' }}</span>
+      <span class="row-action"><a class="button secondary" href="/practice/doctors/{{ d.id }}">Bearbeiten</a></span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+<section class="card box" aria-labelledby="h-imp">
+  <h2 id="h-imp">Vorlage importieren (JSON)</h2>
+  <p>Format wie <code>services.json</code> und <code>specialties.json</code>: <code>{"specialties": [{"name": "…"}], "services": [{"name": "…", "duration_minutes": 30, "specialty": "…"}]}</code>. Vorhandene Leistungen mit gleichem Namen werden aktualisiert.</p>
+  {% if section == 'import' and error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="/practice/import">
+    {{ m.csrf() }}
+    {{ m.field('json', 'JSON', {textarea: true, rows: 8, value: importText, required: true, maxlength: 262144}) }}
+    <div class="field"><label><input type="checkbox" name="dry_run" value="yes" checked> Nur prüfen (Vorschau), nichts speichern</label></div>
+    <button type="submit">Importieren</button>
+  </form>
+</section>
+{% endblock %}

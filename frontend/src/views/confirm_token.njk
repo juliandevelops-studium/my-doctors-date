@@ -1,0 +1,11 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p>{{ intro }}</p>
+<form method="post" action="{{ action }}" class="card narrow">
+  {{ m.csrf() }}
+  <input type="hidden" name="token" value="{{ token }}">
+  <button type="submit">{{ button }}</button>
+</form>
+{% endblock %}

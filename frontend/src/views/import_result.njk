@@ -1,0 +1,12 @@
+{% extends "layout.njk" %}
+{% block content %}
+<h1>Import {% if result.dry_run %}(Vorschau){% endif %}</h1>
+{% if result.dry_run %}<p class="notice">Vorschau: Es wurde nichts gespeichert.</p>{% else %}<p class="notice">Gespeichert.</p>{% endif %}
+<ul>
+  <li>Neue Fachrichtungen: {{ result.specialties_created }}</li>
+  <li>Neue Leistungen: {{ result.services_created }}</li>
+  <li>Aktualisierte Leistungen: {{ result.services_updated }}</li>
+</ul>
+{% for w in result.warnings %}<p class="alert">{{ w }}</p>{% endfor %}
+<p><a class="button" href="/practice">Zurück zur Praxis</a></p>
+{% endblock %}

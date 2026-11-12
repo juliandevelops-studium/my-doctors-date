@@ -1,0 +1,15 @@
+{% extends "layout.njk" %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p>Wählen Sie die Leistung. Danach sehen Sie die freien Termine.</p>
+{% if services.length == 0 %}<p class="muted">Die Praxis hat noch keine Leistungen eingerichtet.</p>{% endif %}
+<div class="grid2">
+{% for s in services %}
+  <article class="card">
+    <h2><a href="{{ baseUrl }}/{{ s.id }}{{ suffix or '' }}">{{ s.name }}</a></h2>
+    <p class="muted">{{ s.duration_minutes }} Minuten{% if s.specialty_name %} · {{ s.specialty_name }}{% endif %}</p>
+    {% if s.is_other %}<p class="hint">Die Praxis ordnet Ihrem Termin eine Ärztin oder einen Arzt zu.</p>{% endif %}
+  </article>
+{% endfor %}
+</div>
+{% endblock %}

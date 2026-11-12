@@ -1,0 +1,23 @@
+{% extends "layout.njk" %}
+{% import "_macros.njk" as m with context %}
+{% block content %}
+<h1>Einrichtung Ihres Kontos</h1>
+{% if step == 'password' %}
+  <p>Bevor Sie fortfahren, legen Sie ein eigenes Passwort fest.</p>
+  <form method="post" action="/setup/password" class="card narrow">
+    {{ m.csrf() }}
+    {{ m.field('current_password', 'Aktuelles Passwort', {type: 'password', required: true, autocomplete: 'current-password', maxlength: 512, errors: errors}) }}
+    {{ m.field('new_password', 'Neues Passwort', {type: 'password', required: true, autocomplete: 'new-password', minlength: 15, maxlength: 512, errors: errors, hint: 'Mindestens 15 Zeichen.'}) }}
+    {{ m.field('password2', 'Neues Passwort wiederholen', {type: 'password', required: true, autocomplete: 'new-password', maxlength: 512, errors: errors}) }}
+    <button type="submit">Passwort speichern</button>
+  </form>
+{% elif step == 'mfa' %}
+  <p>Als Nächstes richten Sie die Zwei-Faktor-Anmeldung ein. Sie brauchen dafür eine Authenticator-App auf dem Smartphone (zum Beispiel FreeOTP, Aegis oder eine andere TOTP-App).</p>
+  <form method="post" action="/setup/mfa/start" class="card narrow">
+    {{ m.csrf() }}
+    <button type="submit">Einrichtung starten</button>
+  </form>
+{% else %}
+  <p>Die Einrichtung ist abgeschlossen. Bitte melden Sie sich einmal ab und neu an.</p>
+{% endif %}
+{% endblock %}
