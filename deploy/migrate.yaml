@@ -1,0 +1,41 @@
+# Applies the SQL migrations as praxis_owner. The image contains exactly the migrations of this commit.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  namespace: praxis
+  labels: {app: migrate}
+spec:
+  backoffLimit: 12
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels: {app: migrate}
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: migrate
+          image: praxis/migrations:dev
+          imagePullPolicy: IfNotPresent
+          args: ["-path=/migrations", "-database=$(DATABASE_URL)", "up"]
+          env:
+            - name: DATABASE_URL
+              valueFrom: {secretKeyRef: {name: migrate-db, key: url}}
+          resources:
+            requests: {cpu: 20m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: postgres-ca, mountPath: /etc/praxis/postgres-ca, readOnly: true}
+      volumes:
+        - name: postgres-ca
+          configMap: {name: postgres-ca}

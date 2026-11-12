@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: praxis
+  labels: {app: user-service}
+spec:
+  selector: {app: user-service}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: praxis
+  labels: {app: user-service}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: user-service}
+  template:
+    metadata:
+      labels: {app: user-service}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532 # secret files are group-readable (mode 0440), never world-readable
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: user-service
+          image: praxis/user-service:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - {name: LISTEN_ADDR, value: ":8080"}
+            - {name: DATABASE_MIDDLEWARE_URL, value: "http://database-middleware:8080"}
+            - {name: MAIL_SERVICE_URL, value: "http://mail-service:8080"}
+            - name: PUBLIC_BASE_URL
+              valueFrom: {configMapKeyRef: {name: praxis-config, key: PUBLIC_BASE_URL}}
+            - {name: JWT_KEY_FILE, value: /etc/praxis/jwt/key.pem}
+            - {name: SERVICE_KEY_FILE, value: /etc/praxis/service-key/key.pem}
+            - {name: MFA_KEY_FILE, value: /etc/praxis/mfa/key}
+            - name: BOOTSTRAP_ADMIN_EMAIL
+              valueFrom: {secretKeyRef: {name: bootstrap-admin, key: email}}
+            - {name: BOOTSTRAP_ADMIN_PASSWORD_FILE, value: /etc/praxis/bootstrap/password}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: jwt, mountPath: /etc/praxis/jwt, readOnly: true}
+            - {name: service-key, mountPath: /etc/praxis/service-key, readOnly: true}
+            - {name: mfa, mountPath: /etc/praxis/mfa, readOnly: true}
+            - {name: bootstrap, mountPath: /etc/praxis/bootstrap, readOnly: true}
+      volumes:
+        - name: jwt
+          secret: {secretName: jwt-key, defaultMode: 288}
+        - name: service-key
+          secret: {secretName: service-key-user-service, defaultMode: 288, items: [{key: key.pem, path: key.pem}]}
+        - name: mfa
+          secret: {secretName: mfa-key, defaultMode: 288}
+        - name: bootstrap
+          secret: {secretName: bootstrap-admin, defaultMode: 288, items: [{key: password, path: password}]}

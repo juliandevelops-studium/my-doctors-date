@@ -1,4 +1,4 @@
-# Route inventory and authorisation rules. Source of truth for roles (SR.03, Rollen-Rechte-Matrix in notes/1_Structure.md).
+# Route inventory and authorisation rules. Source of truth for roles.
 # docs/authz-matrix.md is generated from this file: `make check-contracts`.
 #
 # access:

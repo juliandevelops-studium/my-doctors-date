@@ -1,0 +1,68 @@
+# frontend_provider: server-side rendered pages (Express + Nunjucks). It forwards the token of the user to user_service and
+# calendar_service and makes no authorisation decisions. It is the only workload behind the ingress.
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: praxis
+  labels: {app: frontend}
+spec:
+  selector: {app: frontend}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: praxis
+  labels: {app: frontend}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: frontend}
+  template:
+    metadata:
+      labels: {app: frontend}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: frontend
+          image: praxis/frontend:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - {name: LISTEN_ADDR, value: "0.0.0.0:8080"}
+            - {name: USER_SERVICE_URL, value: "http://user-service:8080"}
+            - {name: CALENDAR_SERVICE_URL, value: "http://calendar-service:8080"}
+            - {name: SESSION_SECRET_FILE, value: /etc/praxis/session/key}
+            - {name: COOKIE_SECURE, value: "true"}
+            - {name: TRUST_PROXY, value: "1"}
+            - {name: PRACTICE_TZ, value: Europe/Berlin}
+            - name: PRACTICE_NAME
+              valueFrom: {configMapKeyRef: {name: praxis-config, key: PRACTICE_NAME}}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {memory: 192Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: session, mountPath: /etc/praxis/session, readOnly: true}
+      volumes:
+        - name: session
+          secret: {secretName: frontend-secret, defaultMode: 288}
