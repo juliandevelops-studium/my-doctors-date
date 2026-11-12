@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: calendar-service
+  namespace: praxis
+  labels: { app: calendar-service }
+spec:
+  selector: { app: calendar-service }
+  ports:
+    - { name: http, port: 8080, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: calendar-service
+  namespace: praxis
+  labels: { app: calendar-service }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: calendar-service }
+  template:
+    metadata:
+      labels: { app: calendar-service }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532 # secret files are group-readable (mode 0440), never world-readable
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: calendar-service
+          image: praxis/calendar-service:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: LISTEN_ADDR, value: ":8080" }
+            - { name: DATABASE_MIDDLEWARE_URL, value: "http://database-middleware:8080" }
+            - { name: MAIL_SERVICE_URL, value: "http://mail-service:8080" }
+            - { name: USER_SERVICE_JWKS_URL, value: "http://user-service:8080/v1/jwks" }
+            - { name: SERVICE_KEY_FILE, value: /etc/praxis/service-key/key.pem }
+            - { name: PRACTICE_TZ, value: Europe/Berlin }
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ ALL ] }
+          volumeMounts:
+            - { name: service-key, mountPath: /etc/praxis/service-key, readOnly: true }
+      volumes:
+        - name: service-key
+          secret: { secretName: service-key-calendar-service, defaultMode: 288, items: [ { key: key.pem, path: key.pem } ] }
