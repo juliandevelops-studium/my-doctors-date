@@ -24,7 +24,7 @@ eingeschränkter.
 
 | ID                 | SR.01                                                                                                                                       |
 |--------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| Name               | JWT replay attack Prävention                                                                                                                |
+| Name               | JWT Replay-Attack-Prävention                                                                                                                |
 | Beschreibung       | Verwendete JWT tokens eines Issuers müssen zwischengespeichert werden, um zu verhindern, dass sie von diesem wiederverwendet werden können. |
 | Kategorie          | Authentifizierung (Service-Service)                                                                                                         |
 | Schutzziel         | Vertraulichkeit und Integrität                                                                                                              |
@@ -51,7 +51,7 @@ eingeschränkter.
 
 | ID                 | SR.04                                                                                                                                                                                                                       |
 |--------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Name               | Sicherer E-Mail-Versand                                                                                                                                                                                                     |
+| Name               | Zentraler und template-gestützter E-Mail-Versand                                                                                                                                                                                                     |
 | Beschreibung       | E-Mail-Versand ist nur über `mail_service` möglich und dieser nutzt nur vorgefertigte E-Mails (Templates).                                                                                                                  |
 | Kategorie          | Eingabevalidierung                                                                                                                                                                                                          |
 | Schutzziel         | Integrität und Verfügbarkeit                                                                                                                                                                                                |
@@ -66,6 +66,16 @@ eingeschränkter.
 | Schutzziel         | Integrität und Vertraulichkeit                                                                                                                                                                        |
 | Geltungsbereich    | Der Link-Parameter (`params.link`) jedes `sendMail`-Aufrufs im `mail_service`                                                                                                                         |
 | Akzeptanzkriterium | Ein übergebener Link muss mit `LinkBase` + `/` beginnen. Andernfalls wird der Aufruf mit dem Fehler `foreign_link` (Feld `params.link`) abgelehnt und keine E-Mail gesendet. Ein kompromittierter Aufrufer kann so keine Links auf fremde Domains einschleusen. |
+
+| ID                 | SR.06                                                                                                                                                                                                 |
+|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Name               | Kubernetes Profilkonfiguration                                                                                                                                                                                      |
+| Beschreibung       | Die Pod Security Admission soll auf `restricted` gesetzt sein, s.d. jeder Pod, der mit Root-Rechten läuft, abgelehnt wird.  |
+| Kategorie          | Deployment                                                                                                                                                                                    |
+| Schutzziel         |                                                                                                                                                                         |
+| Geltungsbereich    | Im kompletten Namespace.                                                                                                                        |
+| Akzeptanzkriterium | `namespace.yaml` setzt `pod-security.kubernetes.io/enforce: restricted`. |
+
 
 ## Architekturdiagramm
 
