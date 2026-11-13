@@ -317,10 +317,11 @@ jobs:
         # Name MUST be "praxis": scripts/ (secrets.sh etc.) address the
         # cluster via the kubectl context "k3d-praxis", hardcoded.
         run: k3d cluster create praxis --wait
-      - name: Wait for the Traefik CRDs (deploy/traefik-tls.yaml needs them)
+      - name: Wait for Traefik (CRD for deploy/traefik-tls.yaml, deployment for the rollout)
         run: |
           until kubectl get crd tlsoptions.traefik.io >/dev/null 2>&1; do sleep 2; done
-          kubectl -n kube-system rollout status deploy/traefik --timeout=180s
+          until kubectl -n kube-system get deploy traefik >/dev/null 2>&1; do sleep 2; done
+          kubectl -n kube-system rollout status deploy/traefik --timeout=300s
       - uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}

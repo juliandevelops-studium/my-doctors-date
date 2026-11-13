@@ -18,7 +18,8 @@ fi
 # k3s installs Traefik and its CRDs a little after the node is ready; the TLSOption in deploy/ needs the CRD.
 log "waiting for Traefik"
 until kc get crd tlsoptions.traefik.io >/dev/null 2>&1; do sleep 2; done
-kc -n kube-system rollout status deploy/traefik --timeout=180s >/dev/null
+until kc -n kube-system get deploy traefik >/dev/null 2>&1; do sleep 2; done
+kc -n kube-system rollout status deploy/traefik --timeout=300s >/dev/null
 
 # ---------------------------------------------------------------- images
 for svc in database_middleware user_service calendar_service mail_service frontend; do
