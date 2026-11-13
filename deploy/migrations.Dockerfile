@@ -11,7 +11,7 @@ RUN go get github.com/go-jose/go-jose/v4@v4.1.6 \
 		golang.org/x/net@v0.62.0 \
 		golang.org/x/text@v0.43.0 \
 		github.com/klauspost/compress@v1.18.7 \
-	&& CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate
+	&& CGO_ENABLED=0 go build -trimpath -tags 'postgres file' -ldflags="-s -w" -o /out/migrate ./cmd/migrate
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
 COPY --from=build /out/migrate /migrate
