@@ -1,5 +1,5 @@
 // Package store implements the fixed database operations of api/database_middleware.yaml.
-// Every statement is a constant with bound parameters (SR.02). Soft-deleted rows are filtered here, centrally.
+// Every statement is a constant with bound parameters. Soft-deleted rows are filtered here, centrally.
 package store
 
 import (

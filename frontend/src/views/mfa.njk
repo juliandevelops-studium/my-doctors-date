@@ -17,10 +17,4 @@
   {% if recovery %}<li><a href="/login/mfa">Stattdessen den Code der App verwenden</a></li>
   {% else %}<li><a href="/login/mfa?recovery=1">Gerät verloren? Recovery-Code verwenden</a></li>{% endif %}
 </ul>
-<form method="post" action="/login/mfa" class="inline-note">
-  {{ m.csrf() }}
-  <input type="hidden" name="mode" value="none">
-  <p>Noch keine Zwei-Faktor-Anmeldung eingerichtet (erste Anmeldung)?
-  <button type="submit" class="link">Weiter ohne Code zur Einrichtung</button></p>
-</form>
 {% endblock %}

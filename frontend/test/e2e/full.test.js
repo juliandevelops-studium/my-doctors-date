@@ -33,7 +33,7 @@ async function loginPassword(u, password = u.password) {
   await b.get('/login');
   const r = await b.post('/login', { email: u.email, password });
   if (r.status !== 302) return r;
-  await b.get('/login/mfa');
+  if (r.location === '/login/mfa') await b.get('/login/mfa');
   return r;
 }
 
@@ -42,8 +42,7 @@ async function onboard(u, { initialPassword = u.password, changePasswordFrom } =
   const b = u.browser;
   const r = await loginPassword(u, initialPassword);
   assert.equal(r.status, 302);
-  const mfa = await b.post('/login/mfa', { mode: 'none' });
-  assert.equal(mfa.location, '/setup');
+  assert.equal(r.location, '/setup', 'no MFA yet: straight to the setup');
   let page = await b.go('/setup');
   if (changePasswordFrom) {
     pageHas(page, /Passwort fest/);
@@ -163,7 +162,7 @@ describe('UF-01 to UF-13 through the real stack', { concurrency: false }, () => 
       admin.password = `Admin-${GOOD}`;
       const r = await loginPassword(admin, admin.initial);
       assert.equal(r.status, 302);
-      assert.equal((await b.post('/login/mfa', { mode: 'none' })).location, '/setup');
+      assert.equal(r.location, '/setup');
       for (const path of ['/admin/users', '/account', '/staff/bookings']) {
         assert.equal((await b.get(path)).location, '/setup', `${path} is not reachable before the setup`);
       }
@@ -307,8 +306,9 @@ describe('UF-01 to UF-13 through the real stack', { concurrency: false }, () => 
       patD.browser = new Browser('patd2');
       const second = await loginPassword(patD, OTHER);
       assert.equal(second.status, 302);
+      assert.equal(second.location, '/login/mfa', 'MFA is set up: the code is asked for');
       const noCode = await patD.browser.post('/login/mfa', { mode: 'none' });
-      assert.equal(noCode.status, 401, 'no second step without the code');
+      assert.equal(noCode.location, '/login/mfa', 'no second step without the code');
       const withCode = await patD.browser.post('/login/mfa', { mode: 'code', code: await nextCode(patD) });
       assert.equal(withCode.status, 302);
     });
@@ -557,8 +557,7 @@ describe('UF-01 to UF-13 through the real stack', { concurrency: false }, () => 
       // A new login only reaches the setup, and a new key is created.
       const oldSecret = u.secret;
       u.browser = new Browser('pata3');
-      assert.equal((await loginPassword(u)).status, 302);
-      assert.equal((await u.browser.post('/login/mfa', { mode: 'none' })).location, '/setup');
+      assert.equal((await loginPassword(u)).location, '/setup', 'MFA was removed: straight to the setup');
       await u.browser.go('/setup');
       const start = await u.browser.post('/setup/mfa/start', {});
       u.secret = /class="secret">([A-Z2-7]{32})</.exec(start.text)[1];
@@ -671,9 +670,9 @@ describe('UF-01 to UF-13 through the real stack', { concurrency: false }, () => 
       await register(Object.assign(fresh, { browser: u }));
       const r = await loginPassword(fresh);
       assert.equal(r.status, 302);
-      const mfa = r.setCookies.find((c) => c.startsWith('__Host-mfa='));
-      assert.match(mfa, /; Path=\/; (Max-Age=300; )?HttpOnly; Secure; SameSite=Strict|HttpOnly; Secure; SameSite=Strict/);
-      await u.post('/login/mfa', { mode: 'none' });
+      assert.equal(r.location, '/setup');
+      const setupSession = r.setCookies.find((c) => c.startsWith('__Host-session='));
+      assert.match(setupSession, /HttpOnly; Secure; SameSite=Strict|; Path=\/; (Max-Age=\d+; )?HttpOnly; Secure; SameSite=Strict/);
       await u.go('/setup');
       const start = await u.post('/setup/mfa/start', {});
       fresh.secret = /class="secret">([A-Z2-7]{32})</.exec(start.text)[1];

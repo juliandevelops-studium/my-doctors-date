@@ -12,7 +12,7 @@ describe('login (UF-02)', () => {
   afterEach(() => app.close());
 
   const challenge = 'chal.' + 'x'.repeat(40);
-  const stubPassword = () => backend.on('POST /v1/auth/login', { status: 200, body: { mfa_challenge: challenge, expires_in: 300 } });
+  const stubPassword = (mfa_enabled = true) => backend.on('POST /v1/auth/login', { status: 200, body: { mfa_challenge: challenge, expires_in: 300, mfa_enabled } });
 
   it('password step: stores the challenge in an HttpOnly cookie and goes to the code page', async () => {
     stubPassword();
@@ -84,14 +84,13 @@ describe('login (UF-02)', () => {
     }
   });
 
-  it('a setup token leads to the setup pages', async () => {
-    stubPassword();
+  it('no MFA yet: the password step skips the code page and goes straight to the setup', async () => {
+    stubPassword(false);
     backend.on('POST /v1/auth/login/mfa', { status: 200, body: { access_token: fakeToken({ scope: 'setup' }), scope: 'setup', roles: ['patient'] } });
     await b.open('/login');
-    await b.post('/login', { email: 'a@example.org', password: 'x' });
-    await b.open('/login/mfa');
-    const r = await b.post('/login/mfa', { mode: 'none' });
+    const r = await b.post('/login', { email: 'a@example.org', password: 'x' });
     assert.equal(r.location, '/setup');
+    assert.ok(!r.setCookies.some((x) => x.startsWith('__Host-mfa=')), 'no challenge cookie is needed');
     assert.deepEqual(backend.called('POST /v1/auth/login/mfa')[0].body, { mfa_challenge: challenge }, 'no code is sent for a first login');
   });
 

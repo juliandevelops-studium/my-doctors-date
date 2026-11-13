@@ -81,7 +81,8 @@ paths:
       tags: [auth]
       summary: Password step of the login (UF-02)
       description: |
-        Checks the password and the lockout (SR.05). On success returns an MFA challenge, never an access token.
+        Checks the password and the lockout (SR.05). On success returns an MFA challenge, never an access token,
+        and `mfa_enabled` so the client can go straight to the MFA setup when MFA is not yet set up.
         Wrong password, unknown e-mail, locked and disabled accounts all return the same 401 `invalid_credentials`.
       security: []
       requestBody:
@@ -699,10 +700,16 @@ components:
         password: {type: string, format: password, minLength: 1, maxLength: 512}
     MfaChallenge:
       type: object
-      required: [mfa_challenge, expires_in]
+      required: [mfa_challenge, expires_in, mfa_enabled]
       properties:
         mfa_challenge: {type: string, minLength: 20, maxLength: 512}
         expires_in: {type: integer, minimum: 1, maximum: 600, example: 300}
+        mfa_enabled:
+          type: boolean
+          description: |
+            Whether the account has confirmed MFA. When false, the client sends the challenge to `/v1/auth/login/mfa`
+            without a code and continues with the MFA setup (setup-scope token). Only revealed after a correct password.
+          example: true
     LoginMfaRequest:
       type: object
       additionalProperties: false

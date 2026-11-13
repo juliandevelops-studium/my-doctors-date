@@ -29,6 +29,18 @@ export default function authRoutes(app, { config }) {
     if (!email || !password) return page(422, 'Bitte geben Sie E-Mail-Adresse und Passwort ein.');
     const r = await req.api.raw('user', 'POST', '/v1/auth/login', { body: { email, password } });
     if (r.status === 200) {
+      if (r.body.mfa_enabled === false) {
+        // No MFA yet: there is no code to ask for. Go straight to the setup with a setup-scope token.
+        const s = await req.api.raw('user', 'POST', '/v1/auth/login/mfa', { body: { mfa_challenge: r.body.mfa_challenge } });
+        if (s.status === 200) {
+          setSession(config, res, s.body.access_token);
+          rotateCsrf(config, res);
+          return res.redirect('/setup');
+        }
+        if (s.status === 401) return page(401, problemMessage(s.body));
+        if (s.status === 429) return page(429, problemMessage(s.body));
+        throw new HttpError(s.status, s.body);
+      }
       res.cookie(names.mfa, r.body.mfa_challenge, cookieOptions(config.cookieSecure, MFA_COOKIE_SECONDS));
       return res.redirect(next ? `/login/mfa?next=${encodeURIComponent(next)}` : '/login/mfa');
     }
@@ -52,7 +64,7 @@ export default function authRoutes(app, { config }) {
     const body = { mfa_challenge: challenge };
     if (mode === 'code') body.code = text(req.body, 'code', 20);
     else if (mode === 'recovery') body.recovery_code = text(req.body, 'recovery_code', 32);
-    else if (mode !== 'none') return res.redirect('/login/mfa');
+    else return res.redirect('/login/mfa');
     const page = (status, error, errors) =>
       res.status(status).render('mfa.njk', { title: 'Zwei-Faktor-Anmeldung', recovery: mode === 'recovery', next, error, errors });
     if ((mode === 'code' && !/^\d{6}$/.test(body.code)) || (mode === 'recovery' && !body.recovery_code)) {

@@ -14,6 +14,11 @@ func TestFirstLoginForcesMfaSetup(t *testing.T) {
 	h := newHarness(t)
 	a := h.makeUser(false, "patient")
 
+	// The password step tells the client that there is no MFA yet, so it can skip the code prompt.
+	if st, ch := h.do("POST", "/v1/auth/login", "", obj{"email": a.Email, "password": a.Password}); st != 200 || ch["mfa_enabled"] != false {
+		t.Fatalf("password step: %d %v", st, ch)
+	}
+
 	st, out := h.login(a, "")
 	if st != 200 || out["scope"] != "setup" || out["mfa_enabled"] != false {
 		t.Fatalf("first login: %d %v", st, out)

@@ -119,7 +119,7 @@ func (s *Server) Login(ctx context.Context, req api.LoginRequestObject) (api.Log
 		Issuer: praxisauth.UserIssuer, Audience: praxisauth.AudienceMFA, Subject: u.Id.String(),
 		IssuedAt: now.Unix(), Expires: now.Add(praxisauth.MFAChallengeLifetime).Unix(), JTI: praxisauth.NewJTI(),
 	})
-	return api.Login200JSONResponse{MfaChallenge: challenge, ExpiresIn: int(praxisauth.MFAChallengeLifetime.Seconds())}, nil
+	return api.Login200JSONResponse{MfaChallenge: challenge, ExpiresIn: int(praxisauth.MFAChallengeLifetime.Seconds()), MfaEnabled: u.MfaEnabled}, nil
 }
 
 // LoginMfa is the second step (UF-02, UF-03). With confirmed MFA a TOTP or recovery code is required. An account
