@@ -77,13 +77,16 @@ genkey() { # secret-name
 genkey jwt-key
 genkey service-key-user-service
 genkey service-key-calendar-service
+genkey service-key-purge-job
 
 # The public keys of the callers are not secret: database_middleware and mail_service verify service tokens with them.
 pub() { kn get secret "$1" -o 'go-template={{index .data "key.pem"}}' | base64 -d | openssl pkey -pubout; }
 pub service-key-user-service >"$work/user_service.pub"
 pub service-key-calendar-service >"$work/calendar_service.pub"
+pub service-key-purge-job >"$work/purge_job.pub"
 kn create configmap service-keys --from-file=user_service.pub="$work/user_service.pub" \
-  --from-file=calendar_service.pub="$work/calendar_service.pub" --dry-run=client -o yaml | kn apply -f - >/dev/null
+  --from-file=calendar_service.pub="$work/calendar_service.pub" \
+  --from-file=purge_job.pub="$work/purge_job.pub" --dry-run=client -o yaml | kn apply -f - >/dev/null
 
 if ! have secret mfa-key; then
   log "creating the MFA key"

@@ -1,0 +1,51 @@
+# Daily retention run (docs/data-model.md): completes past bookings and hard-deletes expired data through
+# database_middleware. No Service, no port; the pod only calls database_middleware (NetworkPolicy purge-job).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: purge-job
+  namespace: praxis
+  labels: { app: purge-job }
+spec:
+  schedule: "00 2 * * *"
+  timeZone: Europe/Berlin
+  concurrencyPolicy: Forbid # a slow run is never overlapped by the next one
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600 # hard stop of a hanging run (the job has its own RUN_TIMEOUT below)
+      template:
+        metadata:
+          labels: { app: purge-job }
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532 # secret files are group-readable (mode 0440), never world-readable
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: purge-job
+              image: praxis/purge-job:dev
+              imagePullPolicy: IfNotPresent
+              env:
+                - { name: DATABASE_MIDDLEWARE_URL, value: "http://database-middleware:8080" }
+                - { name: SERVICE_KEY_FILE, value: /etc/praxis/service-key/key.pem }
+                - { name: RUN_TIMEOUT, value: 5m }
+              resources:
+                requests: { cpu: 20m, memory: 32Mi }
+                limits: { memory: 128Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: [ ALL ] }
+              volumeMounts:
+                - { name: service-key, mountPath: /etc/praxis/service-key, readOnly: true }
+          volumes:
+            - name: service-key
+              secret: { secretName: service-key-purge-job, defaultMode: 288, items: [ { key: key.pem, path: key.pem } ] }

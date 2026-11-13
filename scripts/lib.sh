@@ -37,12 +37,12 @@ cluster_exists() { k3d cluster list -o json 2>/dev/null | grep -q "\"name\": *\"
 # build_service <service>: builds praxis/<service-with-dashes>:$IMAGE_TAG (Go services, or "frontend"). Sets IMAGE_NAME.
 build_service() {
   case "$1" in
-    database_middleware | user_service | calendar_service | mail_service)
+    database_middleware | user_service | calendar_service | mail_service | purge_job)
       IMAGE_NAME="${1//_/-}"; log "building praxis/$IMAGE_NAME"
       docker build -q -t "praxis/$IMAGE_NAME:$IMAGE_TAG" -f "services/$1/Dockerfile" . >/dev/null ;;
     frontend)
       IMAGE_NAME=frontend; log "building praxis/frontend"
       docker build -q -t "praxis/frontend:$IMAGE_TAG" -f frontend/Dockerfile frontend >/dev/null ;;
-    *) die "unknown service '$1' (database_middleware|user_service|calendar_service|mail_service|frontend)" ;;
+    *) die "unknown service '$1' (database_middleware|user_service|calendar_service|mail_service|purge_job|frontend)" ;;
   esac
 }

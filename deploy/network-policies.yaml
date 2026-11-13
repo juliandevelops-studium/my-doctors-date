@@ -101,6 +101,23 @@ spec:
       ports:
         - {protocol: TCP, port: 8080}
 ---
+# Purge job talking
+# INGRESS none.
+# EGRESS purge-job -> database-middleware
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: purge-job
+  namespace: praxis
+spec:
+  podSelector: {matchLabels: {app: purge-job}}
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - podSelector: {matchLabels: {app: database-middleware}}
+      ports:
+        - {protocol: TCP, port: 8080}
+---
 # Mail service talking
 # INGRESS user-service -> mail-service and calendar-service -> mail-service.
 # EGRESS mail-service -> mailpit (SMTP, port 1025)

@@ -3,7 +3,7 @@ export PATH := $(CURDIR)/.tools/bin:$(PATH)
 OAPI_CODEGEN := github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.0
 SPECTRAL     := @stoplight/spectral-cli@6.15.0
 PRISM        := @stoplight/prism-cli@5.14.2
-API_SERVICES := user_service calendar_service mail_service database_middleware
+API_SERVICES := user_service calendar_service mail_service database_middleware purge_job
 SERVICES := user_service calendar_service mail_service database_middleware
 # Services that are not migrated yet are skipped automatically (Phase 6/7 add calendar_service, Phase 7 the frontend).
 
@@ -79,12 +79,19 @@ gen:
 	  ( cd scripts/contractcheck && go run . -root ../.. -policy $$s ) > services/$$s/internal/policy/policy.gen.go || exit 1; \
 	  gofmt -w services/$$s/internal/policy/policy.gen.go; \
 	done
+	@for s in purge_job; do \
+	  [ -d services/$$s ] || continue; \
+	  mkdir -p services/$$s/internal/mwclient && \
+	  ( cd scripts/contractcheck && go run . -root ../.. -client-config $$s ) > .gen-client-$$s.yaml || exit 1; \
+	  go run $(OAPI_CODEGEN) -config .gen-client-$$s.yaml -o services/$$s/internal/mwclient/client.gen.go docs/api/database_middleware.yaml || exit 1; \
+	  rm -f .gen-client-$$s.yaml; \
+	done
 	@for s in mail_service database_middleware; do \
 	  mkdir -p services/$$s/internal/policy && \
 	  ( cd scripts/contractcheck && go run . -root ../.. -policy $$s ) > services/$$s/internal/policy/policy.gen.go || exit 1; \
 	  gofmt -w services/$$s/internal/policy/policy.gen.go; \
 	done
-	@for s in $(API_SERVICES); do [ -d services/$$s ] || continue; (cd services/$$s && go mod tidy) || exit 1; done
+	@for s in $(API_SERVICES) purge_job; do [ -d services/$$s ] || continue; (cd services/$$s && go mod tidy) || exit 1; done
 
 mock:
 	@echo "Prism mocks: user 4011, calendar 4012, mail 4013, middleware 4014 (Ctrl-C stops all)"

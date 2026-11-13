@@ -21,14 +21,14 @@ until kc get crd tlsoptions.traefik.io >/dev/null 2>&1; do sleep 2; done
 kc -n kube-system rollout status deploy/traefik --timeout=180s >/dev/null
 
 # ---------------------------------------------------------------- images
-for svc in database_middleware user_service calendar_service mail_service frontend; do
+for svc in database_middleware user_service calendar_service mail_service purge_job frontend; do
   build_service "$svc"
 done
 log "building praxis/migrations"
 docker build -q -t "praxis/migrations:$IMAGE_TAG" -f deploy/migrations.Dockerfile . >/dev/null
 log "importing the images into the cluster"
 k3d image import -c "$CLUSTER" "praxis/database-middleware:$IMAGE_TAG" "praxis/user-service:$IMAGE_TAG" \
-  "praxis/calendar-service:$IMAGE_TAG" "praxis/mail-service:$IMAGE_TAG" "praxis/frontend:$IMAGE_TAG" \
+  "praxis/calendar-service:$IMAGE_TAG" "praxis/mail-service:$IMAGE_TAG" "praxis/purge-job:$IMAGE_TAG" "praxis/frontend:$IMAGE_TAG" \
   "praxis/migrations:$IMAGE_TAG" >/dev/null
 
 # ---------------------------------------------------------------- deployment

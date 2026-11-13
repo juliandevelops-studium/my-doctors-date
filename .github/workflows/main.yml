@@ -148,6 +148,7 @@ jobs:
           - { image: calendar_service,    context: .,          file: services/calendar_service/Dockerfile }
           - { image: database_middleware, context: .,         file: services/database_middleware/Dockerfile }
           - { image: mail_service,        context: .,         file: services/mail_service/Dockerfile }
+          - { image: purge_job,           context: .,         file: services/purge_job/Dockerfile }
           # - { image: user_service,        context: .,          file: services/user_service/Dockerfile }
           # - { image: frontend,            context: ./frontend, file: frontend/Dockerfile }
           - { image: migrations,          context: .,          file: deploy/migrations.Dockerfile }
