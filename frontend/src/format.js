@@ -22,6 +22,11 @@ export function makeFormatters(timezone) {
     date: (v) => (v && valid(toDate(v)) ? date.format(toDate(v)) : ''),
     dayShort: (v) => (v && valid(toDate(v)) ? dayShort.format(toDate(v)).replaceAll(',', '') : ''),
     time: (v) => (v && valid(toDate(v)) ? time.format(toDate(v)) + ' Uhr' : ''),
+    // 2030-01-02 -> 02.01.2030 (a plain calendar date, no time zone involved)
+    isoDate: (v) => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v ?? '');
+      return m ? `${m[3]}.${m[2]}.${m[1]}` : (v ?? '');
+    },
     // 2030-01-02 in the time zone of the practice
     ymd: (v) => ymd.format(toDate(v)),
     // The instant of 00:00 (practice time) on a YYYY-MM-DD date. Null for anything that is not a real date.

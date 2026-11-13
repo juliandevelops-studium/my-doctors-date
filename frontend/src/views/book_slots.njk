@@ -5,7 +5,7 @@
 <p class="muted">{{ service.duration_minutes }} Minuten{% if service.specialty_name %} · {{ service.specialty_name }}{% endif %}{% if patientName %} · für {{ patientName }}{% endif %}</p>
 <nav class="pager" aria-label="Woche wählen">
   {% if range.prev %}<a href="{{ pagerBase }}from={{ range.prev }}">← Vorige Woche</a>{% else %}<span class="off" aria-disabled="true">← Vorige Woche</span>{% endif %}
-  <span>ab {{ range.from }}</span>
+  <span>ab {{ range.from | isoDate }}</span>
   <a href="{{ pagerBase }}from={{ range.next }}">Nächste Woche →</a>
 </nav>
 <form method="post" action="{{ action }}" class="card">
