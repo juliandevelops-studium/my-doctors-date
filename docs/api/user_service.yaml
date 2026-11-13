@@ -716,16 +716,19 @@ components:
       type: object
       required: [access_token, token_type, expires_in, scope, must_change_password, mfa_enabled]
       properties:
-        access_token: {type: string, maxLength: 2048}
+        # A structurally valid JWT (the frontend decodes the payload for exp/scope; the signature is checked by
+        # user_service only). exp is 2100-01-01, so the example token never expires in a mock session.
+        access_token: {type: string, maxLength: 2048, example: "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ1c2VyX3NlcnZpY2UiLCJhdWQiOiJhcGkiLCJzdWIiOiI0OTdmNmVjYS02Mjc2LTQ5OTMtYmZlYi01M2NiYmJiYTZmMDgiLCJzY29wZSI6ImZ1bGwiLCJyb2xlcyI6WyJwYXRpZW50Il0sImlhdCI6MTc2MjAwMDAwMCwiZXhwIjo0MTAyNDQ0ODAwfQ.bW9jay1zaWduYXR1cmU"}
         token_type: {type: string, enum: [Bearer]}
         expires_in: {type: integer, minimum: 1, maximum: 900, example: 900}
         scope: {$ref: "#/components/schemas/Scope"}
-        must_change_password: {type: boolean}
-        mfa_enabled: {type: boolean}
+        must_change_password: {type: boolean, example: false}
+        mfa_enabled: {type: boolean, example: true}
         roles:
           type: array
           maxItems: 5
           items: {$ref: "#/components/schemas/Role"}
+          example: [patient]
     ForgotPasswordRequest:
       type: object
       additionalProperties: false
@@ -743,6 +746,17 @@ components:
     Profile:
       type: object
       required: [id, first_name, last_name, email, roles, status, mfa_enabled, must_change_password]
+      # Mock example: all roles, so `make mock` lets you click through every page (patient, doctor, desk, organisator, admin).
+      example:
+        id: "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+        first_name: "Erika"
+        last_name: "Muster"
+        email: "erika@example.org"
+        phone: "+49 30 123456"
+        roles: [patient, doctor, desk, organisator, systemadmin]
+        status: active
+        mfa_enabled: true
+        must_change_password: false
       properties:
         id: {type: string, format: uuid}
         first_name: {type: string, maxLength: 100}
