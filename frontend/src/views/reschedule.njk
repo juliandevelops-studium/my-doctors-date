@@ -6,7 +6,7 @@
 <p>{{ booking.service.name }}, bisher {{ booking.starts_at | dateTime }}{% if booking.doctor %} bei {{ booking.doctor.first_name }} {{ booking.doctor.last_name }}{% endif %}.</p>
 <nav class="pager" aria-label="Woche wählen">
   {% if range.prev %}<a href="/bookings/{{ booking.id }}/reschedule?from={{ range.prev }}">← Vorige Woche</a>{% else %}<span class="off" aria-disabled="true">← Vorige Woche</span>{% endif %}
-  <span>ab {{ range.from }}</span>
+  <span>ab {{ range.from | isoDate }}</span>
   <a href="/bookings/{{ booking.id }}/reschedule?from={{ range.next }}">Nächste Woche →</a>
 </nav>
 <form method="post" action="{{ action }}" class="card">

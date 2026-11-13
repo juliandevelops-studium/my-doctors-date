@@ -34,6 +34,7 @@ export function createApp(config, { backend = new Backend(config), log = default
   env.addFilter('date', fmt.date);
   env.addFilter('time', fmt.time);
   env.addFilter('ymd', fmt.ymd);
+  env.addFilter('isoDate', fmt.isoDate);
   env.addFilter('min', (list) => Math.min(...list));
   env.addFilter('max', (list) => Math.max(...list));
   env.addGlobal('practiceName', config.practiceName);

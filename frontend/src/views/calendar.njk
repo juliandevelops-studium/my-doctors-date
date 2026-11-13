@@ -3,7 +3,7 @@
 <h1>Mein Kalender</h1>
 <nav class="pager" aria-label="Woche wählen">
   <a href="/calendar?from={{ range.prev }}">← Vorige Woche</a>
-  <span>{{ range.from }} bis {{ range.to }}</span>
+  <span>{{ range.from | isoDate }} bis {{ range.to | isoDate }}</span>
   <a href="/calendar?from={{ range.next }}">Nächste Woche →</a>
   <a href="/calendar?from={{ range.today }}">Heute</a>
 </nav>
